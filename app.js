@@ -44,18 +44,10 @@ const TRIP_START = "2026-07-29";
       icon: (main, hole) => svg(`<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="${main}"/><circle cx="12" cy="9.2" r="2.6" fill="${hole}"/>`) }
   };
 
-  const MODES = {
-    car:  { label: "자동차",
-      icon: (main) => svg(`<path d="M18.92 6.75c-.2-.6-.76-1-1.42-1h-11c-.66 0-1.21.4-1.42 1L3 12.7v7.6c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-7.6l-2.08-5.95zM6.5 16.5A1.5 1.5 0 1 1 6.5 13.5a1.5 1.5 0 0 1 0 3zm11 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM5 11.5l1.5-4.5h11l1.5 4.5H5z" fill="${main}"/>`) },
-    walk: { label: "도보",
-      icon: (main) => svg(`<ellipse cx="8.6" cy="6.4" rx="1.7" ry="2.3" fill="${main}" transform="rotate(-18 8.6 6.4)"/><ellipse cx="15.2" cy="11.6" rx="1.7" ry="2.3" fill="${main}" transform="rotate(18 15.2 11.6)"/><ellipse cx="8.6" cy="17.6" rx="1.7" ry="2.3" fill="${main}" transform="rotate(-18 8.6 17.6)"/>`) },
-    bus:  { label: "대중교통",
-      icon: (main, hole) => svg(`<rect x="4.5" y="4.2" width="15" height="13.6" rx="3.4" fill="${main}"/><rect x="6.4" y="6.3" width="11.2" height="4.2" rx="1.1" fill="${hole}"/><circle cx="8" cy="19.3" r="1.4" fill="${main}"/><circle cx="16" cy="19.3" r="1.4" fill="${main}"/>`) }
-  };
-
   const mapIcon = svg(`<path d="M12 21s7-6.2 7-11.6C19 5.3 15.9 2 12 2S5 5.3 5 9.4C5 14.8 12 21 12 21Z" fill="currentColor"/><circle cx="12" cy="9.3" r="2.7" fill="var(--naver-soft)"/>`);
   const pencilIcon = svg(`<path d="M3 21l1-4.2L14.5 6.2a1.2 1.2 0 0 1 1.7 0l1.6 1.6a1.2 1.2 0 0 1 0 1.7L7.2 20l-4.2 1z" fill="currentColor"/>`);
   const heartIcon = svg(`<path d="M12 21s-7.2-4.4-9.6-8.9C.7 8.7 2.1 5.2 5.5 4.4c2-.5 4 .3 5 2.1 1-1.8 3-2.6 5-2.1 3.4.8 4.8 4.3 3.1 7.7C19.2 16.6 12 21 12 21z" fill="currentColor"/>`);
+  const carIcon = svg(`<path d="M18.92 6.75c-.2-.6-.76-1-1.42-1h-11c-.66 0-1.21.4-1.42 1L3 12.7v7.6c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-7.6l-2.08-5.95zM6.5 16.5A1.5 1.5 0 1 1 6.5 13.5a1.5 1.5 0 0 1 0 3zm11 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM5 11.5l1.5-4.5h11l1.5 4.5H5z" fill="currentColor"/>`);
 
   function uid() { return (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)); }
   function esc(s) {
@@ -75,12 +67,15 @@ const TRIP_START = "2026-07-29";
     return v;
   }
   const VOTER_ID = getVoterId();
+  function naverRouteUrl(fromName, toName) {
+    return `https://map.naver.com/p/directions/${encodeURIComponent(fromName)}/${encodeURIComponent(toName)}/-/car`;
+  }
 
   // ---- remote state (mirrors the Supabase tables) --------------------------
-  let days = [];         // [{day_index, date_label, weekday, map_url}]
-  let items = [];        // [{id, day_index, kind, sort_order, time, category, name, meta, map_url, mode, duration}]
-  let candidates = [];    // [{id, item_id, name, meta, map_url}]
-  let votes = [];         // [{candidate_id, voter_id}]
+  let days = [];        // [{day_index, date_label, weekday, theme, map_url}]
+  let items = [];       // [{id, day_index, kind, sort_order, time, category, name, meta, map_url, distance_m}]
+  let candidates = [];  // [{id, item_id, name, meta, map_url}]
+  let votes = [];        // [{candidate_id, voter_id}]
 
   function itemsForDay(di) { return items.filter((it) => it.day_index === di).sort((a, b) => a.sort_order - b.sort_order); }
   function candidatesForItem(itemId) { return candidates.filter((c) => c.item_id === itemId); }
@@ -95,8 +90,8 @@ const TRIP_START = "2026-07-29";
   }
 
   // ---- local, per-day UI state (not synced — just "what form is open") ----
-  function freshDraft() { return { time: "", name: "", meta: "", mapUrl: "", duration: "" }; }
-  let formState = [0, 1, 2, 3].map(() => ({ open: null, category: "food", mode: "car", editId: null, insertAt: null, draft: freshDraft() }));
+  function freshDraft() { return { time: "", name: "", meta: "", mapUrl: "", distance: "", voteMode: false, candidateNames: [] }; }
+  let formState = [0, 1, 2, 3].map(() => ({ open: null, category: "food", editId: null, insertAt: null, draft: freshDraft() }));
   let voteDrafts = {}; // itemId -> current text in that vote-card's "add candidate" input
   let pendingDelete = null;
 
@@ -117,74 +112,48 @@ const TRIP_START = "2026-07-29";
     const nameEl = form.querySelector('[data-role="f-name"]'); if (nameEl) fs.draft.name = nameEl.value;
     const metaEl = form.querySelector('[data-role="f-meta"]'); if (metaEl) fs.draft.meta = metaEl.value;
     const linkEl = form.querySelector('[data-role="f-maplink"]'); if (linkEl) fs.draft.mapUrl = linkEl.value;
-    const durEl = form.querySelector('[data-role="f-duration"]'); if (durEl) fs.draft.duration = durEl.value;
+    const distEl = form.querySelector('[data-role="f-distance"]'); if (distEl) fs.draft.distance = distEl.value;
   }
 
   function stopFormHtml(di, fs) {
     const d = fs.draft;
-    const chips = Object.entries(CATEGORIES).map(([key, c]) => {
+    const voteMode = !!d.voteMode;
+    const catChips = Object.entries(CATEGORIES).map(([key, c]) => {
       const sel = fs.category === key;
       const main = sel ? "#fff" : c.fg, hole = sel ? c.fg : "#fff";
       return `<button type="button" class="chip${sel ? " selected" : ""}" style="${sel ? `background:${c.fg};` : ""}" data-action="pick-cat" data-day="${di}" data-cat="${key}">${c.icon(main, hole)}${c.label}</button>`;
     }).join("");
-    const label = fs.editId ? "저장" : "추가";
+    const toggleChip = `<button type="button" class="chip${voteMode ? " selected" : ""}" style="${voteMode ? "background:#7a3fb0;" : ""}" data-action="toggle-vote-mode" data-day="${di}">🗳️ 여러 후보로 투표받기</button>`;
+    const label = fs.editId ? "저장" : (voteMode ? "투표 카드 만들기" : "추가");
+
+    let extra;
+    if (voteMode) {
+      const names = d.candidateNames || [];
+      const nameChips = names.map((n, idx) => `<span class="chip" style="cursor:default;">${esc(n)}<button type="button" data-action="remove-draft-candidate" data-day="${di}" data-idx="${idx}" style="border:none;background:none;color:inherit;font-weight:900;margin-left:2px;cursor:pointer;">×</button></span>`).join("");
+      extra = `${names.length ? `<div class="chip-row">${nameChips}</div>` : ""}
+        <div class="form-grid">
+          <input type="text" placeholder="후보 장소 이름 입력 후 추가" maxlength="40" data-role="f-candidate">
+          <button type="button" class="btn-cancel" style="flex:0 0 auto;" data-action="add-draft-candidate" data-day="${di}">추가</button>
+        </div>`;
+    } else {
+      extra = `<div class="form-grid">
+          <input type="text" placeholder="장소 이름" maxlength="40" value="${esc(d.name)}" data-role="f-name">
+        </div>
+        <input type="text" placeholder="메모 (예: 서귀포 · 실내)" maxlength="60" value="${esc(d.meta)}" data-role="f-meta">
+        <input type="text" placeholder="네이버지도 링크 (선택, 비워두면 이름으로 자동 검색)" value="${esc(d.mapUrl)}" data-role="f-maplink">
+        <input type="text" inputmode="numeric" placeholder="다음 장소까지 거리 (m, 선택 · 예: 357)" maxlength="6" value="${esc(d.distance)}" data-role="f-distance">`;
+    }
+
     return `<div class="add-form" data-day="${di}">
-      <div class="chip-row">${chips}</div>
+      <div class="chip-row">${catChips}</div>
+      <div class="chip-row">${toggleChip}</div>
       <div class="form-grid">
         <input type="text" inputmode="numeric" pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$" maxlength="5" placeholder="14:30" value="${esc(d.time)}" data-role="f-time" aria-label="시간 (24시간제, 예: 14:30)">
-        <input type="text" placeholder="장소 이름" maxlength="40" value="${esc(d.name)}" data-role="f-name">
       </div>
-      <input type="text" placeholder="메모 (예: 서귀포 · 실내)" maxlength="60" value="${esc(d.meta)}" data-role="f-meta">
-      <input type="text" placeholder="네이버지도 링크 (선택, 비워두면 이름으로 자동 검색)" value="${esc(d.mapUrl)}" data-role="f-maplink">
+      ${extra}
       <div class="form-actions">
         <button type="button" class="btn-cancel" data-action="cancel-form" data-day="${di}">취소</button>
         <button type="button" class="btn-primary" data-action="submit-stop" data-day="${di}">${label}</button>
-      </div>
-    </div>`;
-  }
-
-  function transitFormHtml(di, fs) {
-    const d = fs.draft;
-    const chips = Object.entries(MODES).map(([key, m]) => {
-      const sel = fs.mode === key;
-      const main = sel ? "#fff" : "#5c6b81", hole = sel ? "#3d4db3" : "#fff";
-      return `<button type="button" class="chip${sel ? " selected" : ""}" style="${sel ? "background:#3d4db3;" : ""}" data-action="pick-mode" data-day="${di}" data-mode="${key}">${m.icon(main, hole)}${m.label}</button>`;
-    }).join("");
-    const label = fs.editId ? "저장" : "추가";
-    return `<div class="add-form" data-day="${di}">
-      <div class="chip-row">${chips}</div>
-      <div class="form-grid">
-        <input type="number" min="1" max="600" placeholder="이동 시간 (분)" value="${esc(d.duration)}" data-role="f-duration">
-      </div>
-      <div class="form-actions">
-        <button type="button" class="btn-cancel" data-action="cancel-form" data-day="${di}">취소</button>
-        <button type="button" class="btn-primary" data-action="submit-transit" data-day="${di}">${label}</button>
-      </div>
-    </div>`;
-  }
-
-  function voteFormHtml(di, fs) {
-    const d = fs.draft;
-    const chips = Object.entries(CATEGORIES).map(([key, c]) => {
-      const sel = fs.category === key;
-      const main = sel ? "#fff" : c.fg, hole = sel ? c.fg : "#fff";
-      return `<button type="button" class="chip${sel ? " selected" : ""}" style="${sel ? `background:${c.fg};` : ""}" data-action="pick-cat" data-day="${di}" data-cat="${key}">${c.icon(main, hole)}${c.label}</button>`;
-    }).join("");
-    const names = (fs.draft.candidateNames || []);
-    const nameChips = names.map((n, idx) => `<span class="chip" style="cursor:default;">${esc(n)}<button type="button" data-action="remove-draft-candidate" data-day="${di}" data-idx="${idx}" style="border:none;background:none;color:inherit;font-weight:900;margin-left:2px;cursor:pointer;">×</button></span>`).join("");
-    return `<div class="add-form" data-day="${di}">
-      <div class="chip-row">${chips}</div>
-      <div class="form-grid">
-        <input type="text" inputmode="numeric" pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$" maxlength="5" placeholder="14:30 (선택)" value="${esc(d.time)}" data-role="f-time">
-      </div>
-      ${names.length ? `<div class="chip-row">${nameChips}</div>` : ""}
-      <div class="form-grid">
-        <input type="text" placeholder="후보 장소 이름 입력 후 추가" maxlength="40" data-role="f-candidate">
-        <button type="button" class="btn-cancel" style="flex:0 0 auto;" data-action="add-draft-candidate" data-day="${di}">추가</button>
-      </div>
-      <div class="form-actions">
-        <button type="button" class="btn-cancel" data-action="cancel-form" data-day="${di}">취소</button>
-        <button type="button" class="btn-primary" data-action="submit-vote" data-day="${di}">투표 카드 만들기</button>
       </div>
     </div>`;
   }
@@ -228,19 +197,20 @@ const TRIP_START = "2026-07-29";
 
       const pieces = [];
       dayItems.forEach((item, idx) => {
-        if (fs.editId === item.id && item.kind !== "vote") {
-          pieces.push(item.kind === "transit" ? transitFormHtml(di, fs) : stopFormHtml(di, fs));
-        } else if (item.kind === "transit") {
-          const mode = MODES[item.mode] || MODES.car;
-          pieces.push(`<div class="transit-card" data-kind="item" data-day="${di}" data-id="${item.id}">
-            <div class="item-main">
-              <span class="badge transit-badge">${mode.icon("#5c6b81", "var(--surface-sunken)")}</span>
-              <div class="title-block"><p class="transit-text">${mode.label}로 ${item.duration}분 이동</p></div>
-              <button class="icon-btn" data-action="edit-item" data-day="${di}" data-id="${item.id}" aria-label="수정">${pencilIcon}</button>
-            </div>
-          </div>`);
+        if (fs.editId === item.id && item.kind === "stop") {
+          pieces.push(stopFormHtml(di, fs));
         } else if (item.kind === "vote") {
           pieces.push(voteCardHtml(di, item));
+        } else if (item.kind === "transit") {
+          // Rows from an earlier version of the app. Nothing creates these any
+          // more (travel is now the automatic distance connector below), but
+          // old rows are still shown read-only so existing data doesn't break.
+          pieces.push(`<div class="transit-card" data-kind="item" data-day="${di}" data-id="${item.id}">
+            <div class="item-main">
+              <span class="badge transit-badge">${carIcon}</span>
+              <div class="title-block"><p class="transit-text">${item.duration ? item.duration + "분 이동" : "이동"}</p></div>
+            </div>
+          </div>`);
         } else {
           const cat = CATEGORIES[item.category] || CATEGORIES.etc;
           const timeHtml = item.time ? `<span class="hm">${item.time}</span>` : `<span class="dash">·</span>`;
@@ -258,22 +228,29 @@ const TRIP_START = "2026-07-29";
             </div>
           </div>`);
         }
+
         if (!fs.open && idx < n - 1) {
-          pieces.push(`<div class="insert-row">
-            <button type="button" class="insert-chip" data-action="open-stop" data-day="${di}" data-at="${idx + 1}">＋ 장소</button>
-            <button type="button" class="insert-chip" data-action="open-transit" data-day="${di}" data-at="${idx + 1}">＋ 이동시간</button>
-            <button type="button" class="insert-chip" data-action="open-vote" data-day="${di}" data-at="${idx + 1}">＋ 투표</button>
-          </div>`);
+          const next = dayItems[idx + 1];
+          if (item.kind === "stop" && next && next.kind === "stop") {
+            const distLabel = item.distance_m ? `${item.distance_m}m` : "경로 보기";
+            const routeHref = naverRouteUrl(item.name, next.name);
+            pieces.push(`<div class="transit-connector">
+              <a class="distance-chip" target="_blank" rel="noopener" href="${routeHref}">${carIcon}<span>${distLabel}</span></a>
+              <button type="button" class="insert-plus" data-action="open-stop" data-day="${di}" data-at="${idx + 1}" aria-label="여기에 추가">＋</button>
+            </div>`);
+          } else {
+            pieces.push(`<div class="insert-row-plain">
+              <button type="button" class="insert-plus" data-action="open-stop" data-day="${di}" data-at="${idx + 1}" aria-label="여기에 추가">＋</button>
+            </div>`);
+          }
         }
       });
 
       const showAddForm = fs.open && !fs.editId;
-      const formHtml = showAddForm ? (fs.open === "transit" ? transitFormHtml(di, fs) : fs.open === "vote" ? voteFormHtml(di, fs) : stopFormHtml(di, fs)) : "";
+      const formHtml = showAddForm ? stopFormHtml(di, fs) : "";
       const emptyHtml = (n === 0 && !showAddForm) ? `<div class="empty-card"><p>아직 일정이 없어요</p><span>+ 버튼으로 장소를 추가해보세요</span></div>` : "";
-      const actionsHtml = (!fs.open) ? `<div class="actions-row">
-        <button type="button" class="ghost-btn" data-action="open-stop" data-day="${di}" data-at="${n}">＋ 장소</button>
-        <button type="button" class="ghost-btn" data-action="open-transit" data-day="${di}" data-at="${n}">＋ 이동시간</button>
-        <button type="button" class="ghost-btn" data-action="open-vote" data-day="${di}" data-at="${n}">＋ 후보 투표</button>
+      const actionsHtml = (!fs.open) ? `<div class="add-plus-row">
+        <button type="button" class="insert-plus large" data-action="open-stop" data-day="${di}" data-at="${n}" aria-label="장소 추가">＋</button>
       </div>` : "";
 
       return `<section class="day" id="day-${di + 1}">
@@ -379,6 +356,7 @@ const TRIP_START = "2026-07-29";
       if (error) console.error(error);
     }
   }
+
   // ------------------------------------------------------------ interaction --
   daysEl.addEventListener("input", (e) => {
     if (e.target.matches('[data-role="f-time"]')) {
@@ -400,7 +378,7 @@ const TRIP_START = "2026-07-29";
     pressTarget = null;
   }
   daysEl.addEventListener("pointerdown", (e) => {
-    if (e.target.closest(".icon-btn, .maplink-icon, .poll-vote-btn, input, button, a")) return;
+    if (e.target.closest(".icon-btn, .maplink-icon, .poll-vote-btn, .distance-chip, .insert-plus, input, button, a")) return;
     const card = e.target.closest(".poll-item, .stop-card, .transit-card, .vote-card");
     if (!card) return;
     pressTarget = card;
@@ -429,19 +407,11 @@ const TRIP_START = "2026-07-29";
 
     if (action === "open-stop") {
       const at = btn.dataset.at !== undefined ? Number(btn.dataset.at) : itemsForDay(di).length;
-      formState[di] = { open: "stop", category: "food", mode: "car", editId: null, insertAt: at, draft: freshDraft() }; render();
-    }
-    else if (action === "open-transit") {
-      const at = btn.dataset.at !== undefined ? Number(btn.dataset.at) : itemsForDay(di).length;
-      formState[di] = { open: "transit", category: "food", mode: "car", editId: null, insertAt: at, draft: freshDraft() }; render();
-    }
-    else if (action === "open-vote") {
-      const at = btn.dataset.at !== undefined ? Number(btn.dataset.at) : itemsForDay(di).length;
-      formState[di] = { open: "vote", category: "food", mode: "car", editId: null, insertAt: at, draft: { ...freshDraft(), candidateNames: [] } }; render();
+      formState[di] = { open: "stop", category: "food", editId: null, insertAt: at, draft: freshDraft() }; render();
     }
     else if (action === "cancel-form") { fs.open = null; fs.editId = null; render(); }
     else if (action === "pick-cat") { captureDraft(di); fs.category = btn.dataset.cat; render(); }
-    else if (action === "pick-mode") { captureDraft(di); fs.mode = btn.dataset.mode; render(); }
+    else if (action === "toggle-vote-mode") { captureDraft(di); fs.draft.voteMode = !fs.draft.voteMode; render(); }
     else if (action === "add-draft-candidate") {
       const form = btn.closest(".add-form");
       const input = form.querySelector('[data-role="f-candidate"]');
@@ -457,52 +427,43 @@ const TRIP_START = "2026-07-29";
     }
     else if (action === "edit-item") {
       const item = items.find((it) => it.id === btn.dataset.id);
-      if (!item) return;
-      if (item.kind === "transit") {
-        formState[di] = { open: "transit", category: "food", mode: item.mode, editId: item.id, insertAt: null, draft: { ...freshDraft(), duration: String(item.duration || "") } };
-      } else if (item.kind === "stop") {
-        formState[di] = { open: "stop", category: item.category, mode: "car", editId: item.id, insertAt: null, draft: { time: item.time || "", name: item.name || "", meta: item.meta || "", mapUrl: item.map_url || "", duration: "" } };
-      } else {
-        return; // vote-card fields are edited inline (time/category) — reuse edit-item for future extension
-      }
+      if (!item || item.kind !== "stop") return; // vote / legacy transit cards aren't edited inline
+      formState[di] = {
+        open: "stop", category: item.category, editId: item.id, insertAt: null,
+        draft: {
+          time: item.time || "", name: item.name || "", meta: item.meta || "", mapUrl: item.map_url || "",
+          distance: item.distance_m != null ? String(item.distance_m) : "", voteMode: false, candidateNames: []
+        }
+      };
       render();
     }
     else if (action === "submit-stop") {
       const form = btn.closest(".add-form");
+      const timeRaw = form.querySelector('[data-role="f-time"]').value;
+      const time = /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(timeRaw) ? timeRaw : "";
+
+      if (fs.draft.voteMode) {
+        const names = fs.draft.candidateNames || [];
+        (async () => {
+          const { data, error } = await supabase.from("items").insert({ day_index: di, kind: "vote", sort_order: computeSortOrder(di, fs.insertAt), time, category: fs.category }).select().single();
+          if (error) { console.error(error); return; }
+          for (const nm of names) await supabase.from("candidates").insert({ item_id: data.id, name: nm });
+        })();
+        fs.open = null; fs.editId = null; render();
+        return;
+      }
+
       const name = form.querySelector('[data-role="f-name"]').value.trim();
       if (!name) { form.querySelector('[data-role="f-name"]').focus(); return; }
-      const timeRaw = form.querySelector('[data-role="f-time"]').value;
-      const time = /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(timeRaw) ? timeRaw : "";
       const meta = form.querySelector('[data-role="f-meta"]').value.trim();
       const mapUrl = form.querySelector('[data-role="f-maplink"]').value.trim();
+      const distRaw = form.querySelector('[data-role="f-distance"]').value.trim();
+      const distance_m = distRaw ? Number(distRaw) : null;
       if (fs.editId) {
-        updateItem(fs.editId, { time, category: fs.category, name, meta, map_url: mapUrl });
+        updateItem(fs.editId, { time, category: fs.category, name, meta, map_url: mapUrl, distance_m });
       } else {
-        addItem(di, "stop", { time, category: fs.category, name, meta, map_url: mapUrl }, fs.insertAt);
+        addItem(di, "stop", { time, category: fs.category, name, meta, map_url: mapUrl, distance_m }, fs.insertAt);
       }
-      fs.open = null; fs.editId = null; render();
-    }
-    else if (action === "submit-transit") {
-      const form = btn.closest(".add-form");
-      const duration = Number(form.querySelector('[data-role="f-duration"]').value);
-      if (!duration || duration <= 0) { form.querySelector('[data-role="f-duration"]').focus(); return; }
-      if (fs.editId) {
-        updateItem(fs.editId, { mode: fs.mode, duration });
-      } else {
-        addItem(di, "transit", { mode: fs.mode, duration }, fs.insertAt);
-      }
-      fs.open = null; fs.editId = null; render();
-    }
-    else if (action === "submit-vote") {
-      const form = btn.closest(".add-form");
-      const timeRaw = form.querySelector('[data-role="f-time"]').value;
-      const time = /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(timeRaw) ? timeRaw : "";
-      const names = fs.draft.candidateNames || [];
-      (async () => {
-        const { data, error } = await supabase.from("items").insert({ day_index: di, kind: "vote", sort_order: computeSortOrder(di, fs.insertAt), time, category: fs.category }).select().single();
-        if (error) { console.error(error); return; }
-        for (const n of names) await supabase.from("candidates").insert({ item_id: data.id, name: n });
-      })();
       fs.open = null; fs.editId = null; render();
     }
     else if (action === "add-candidate") {

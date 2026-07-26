@@ -35,6 +35,7 @@ create table if not exists items (
   map_url     text default '',
   mode        text default 'car',
   duration    int,
+  distance_m  int,
   created_at  timestamptz not null default now()
 );
 
