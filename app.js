@@ -48,6 +48,7 @@ const TRIP_START = "2026-07-29";
   const pencilIcon = svg(`<path d="M3 21l1-4.2L14.5 6.2a1.2 1.2 0 0 1 1.7 0l1.6 1.6a1.2 1.2 0 0 1 0 1.7L7.2 20l-4.2 1z" fill="currentColor"/>`);
   const heartIcon = svg(`<path d="M12 21s-7.2-4.4-9.6-8.9C.7 8.7 2.1 5.2 5.5 4.4c2-.5 4 .3 5 2.1 1-1.8 3-2.6 5-2.1 3.4.8 4.8 4.3 3.1 7.7C19.2 16.6 12 21 12 21z" fill="currentColor"/>`);
   const carIcon = svg(`<path d="M18.92 6.75c-.2-.6-.76-1-1.42-1h-11c-.66 0-1.21.4-1.42 1L3 12.7v7.6c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-7.6l-2.08-5.95zM6.5 16.5A1.5 1.5 0 1 1 6.5 13.5a1.5 1.5 0 0 1 0 3zm11 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM5 11.5l1.5-4.5h11l1.5 4.5H5z" fill="currentColor"/>`);
+  const voteIcon = (main, hole) => svg(`<path d="M8 4.2h8l1.8 4.6H6.2L8 4.2z" fill="${main}"/><rect x="4" y="9" width="16" height="10.8" rx="2" fill="${main}"/><path d="M8.4 14l2.3 2.1 4.3-4.4" stroke="${hole}" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`);
 
   function uid() { return (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)); }
   function esc(s) {
@@ -128,14 +129,15 @@ const TRIP_START = "2026-07-29";
       const main = sel ? "#fff" : c.fg, hole = sel ? c.fg : "#fff";
       return `<button type="button" class="chip${sel ? " selected" : ""}" style="${sel ? `background:${c.fg};` : ""}" data-action="pick-cat" data-day="${di}" data-cat="${key}">${c.icon(main, hole)}${c.label}</button>`;
     }).join("");
-    const toggleChip = `<button type="button" class="chip${voteMode ? " selected" : ""}" style="${voteMode ? "background:#7a3fb0;" : ""}" data-action="toggle-vote-mode" data-day="${di}">🗳️ 여러 후보로 투표받기</button>`;
+    const toggleChip = `<button type="button" class="chip${voteMode ? " selected" : ""}" style="${voteMode ? "background:#7a3fb0;" : ""}" data-action="toggle-vote-mode" data-day="${di}">${voteIcon(voteMode ? "#fff" : "#7a3fb0", voteMode ? "#7a3fb0" : "#fff")} 여러 후보로 투표받기</button>`;
     const label = fs.editId ? "저장" : (voteMode ? "투표 카드 만들기" : "추가");
 
     let extra;
     if (voteMode) {
       const names = d.candidateNames || [];
       const nameChips = names.map((n, idx) => `<span class="chip" style="cursor:default;">${esc(n)}<button type="button" data-action="remove-draft-candidate" data-day="${di}" data-idx="${idx}" style="border:none;background:none;color:inherit;font-weight:900;margin-left:2px;cursor:pointer;">×</button></span>`).join("");
-      extra = `${names.length ? `<div class="chip-row">${nameChips}</div>` : ""}
+      extra = `<input type="text" placeholder="투표 제목 (예: 점심 뭐 먹지?)" maxlength="40" value="${esc(d.name)}" data-role="f-name">
+        ${names.length ? `<div class="chip-row">${nameChips}</div>` : ""}
         <div class="form-grid">
           <input type="text" placeholder="후보 장소 이름 입력 후 추가" maxlength="40" data-role="f-candidate">
           <button type="button" class="btn-cancel" style="flex:0 0 auto;" data-action="add-draft-candidate" data-day="${di}">추가</button>
@@ -182,7 +184,10 @@ const TRIP_START = "2026-07-29";
       <div class="item-main">
         <div class="time-block">${timeHtml}</div>
         <span class="badge" style="background:${cat.bg}">${cat.icon(cat.fg, cat.bg)}</span>
-        <div class="title-block"><span class="vote-label">🗳️ 후보 투표중</span></div>
+        <div class="title-block">
+          ${item.name ? `<p class="name">${esc(item.name)}</p>` : ""}
+          <span class="vote-label">${voteIcon("var(--accent-ink)", "var(--accent-soft)")}후보 투표중</span>
+        </div>
         <button class="icon-btn" data-action="edit-item" data-day="${di}" data-id="${item.id}" aria-label="수정">${pencilIcon}</button>
       </div>
       <ul class="vote-candidates">${rows || `<li style="padding:4px 2px;color:var(--text-faint);font-size:12.5px;">아직 후보가 없어요</li>`}</ul>
@@ -451,7 +456,7 @@ const TRIP_START = "2026-07-29";
       } else if (item.kind === "vote") {
         formState[di] = {
           open: "stop", category: item.category, editId: item.id, insertAt: null,
-          draft: { time: item.time || "", name: "", meta: "", mapUrl: "", distance: "", voteMode: true, candidateNames: [] }
+          draft: { time: item.time || "", name: item.name || "", meta: "", mapUrl: "", distance: "", voteMode: true, candidateNames: [] }
         };
       } else {
         return; // legacy transit cards aren't edited inline
@@ -464,16 +469,18 @@ const TRIP_START = "2026-07-29";
       const time = /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(timeRaw) ? timeRaw : "";
 
       if (fs.draft.voteMode) {
+        const titleEl = form.querySelector('[data-role="f-name"]');
+        const title = titleEl ? titleEl.value.trim() : "";
         const names = fs.draft.candidateNames || [];
         if (fs.editId) {
           const voteItemId = fs.editId;
           (async () => {
-            await updateItem(voteItemId, { time, category: fs.category });
+            await updateItem(voteItemId, { time, category: fs.category, name: title });
             for (const nm of names) await supabase.from("candidates").insert({ item_id: voteItemId, name: nm });
           })();
         } else {
           (async () => {
-            const { data, error } = await supabase.from("items").insert({ day_index: di, kind: "vote", sort_order: computeSortOrder(di, fs.insertAt), time, category: fs.category }).select().single();
+            const { data, error } = await supabase.from("items").insert({ day_index: di, kind: "vote", sort_order: computeSortOrder(di, fs.insertAt), time, category: fs.category, name: title }).select().single();
             if (error) { console.error(error); return; }
             for (const nm of names) await supabase.from("candidates").insert({ item_id: data.id, name: nm });
           })();
