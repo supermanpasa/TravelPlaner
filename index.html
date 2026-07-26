@@ -31,6 +31,7 @@
     --accent-soft: #e5eefb;
     --accent-ink: #0c3f85;
     --naver: #03c75a;
+    --naver-soft: #dcf7e6;
     --naver-ink: #04381c;
     --danger: #e0483f;
     --shadow: 0 1px 2px rgba(15, 35, 60, 0.05), 0 8px 22px rgba(15, 35, 60, 0.07);
@@ -84,29 +85,6 @@
   .day-head .theme { margin: 2px 0 0; font-size: 13px; font-weight: 700; color: var(--accent-ink); }
   .day-body { display: flex; flex-direction: column; gap: 8px; }
 
-  .daymap-wrap { position: relative; margin-bottom: 2px; }
-  .daymap-card {
-    display: flex; align-items: center; gap: 12px; text-decoration: none;
-    background: linear-gradient(135deg, #e7f3fc, #d7e9fb);
-    border-radius: 18px; padding: 13px 16px; box-shadow: var(--shadow);
-  }
-  .daymap-icon { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.75); display: flex; align-items: center; justify-content: center; color: var(--accent-ink); }
-  .daymap-icon svg { width: 18px; height: 18px; }
-  .daymap-title { margin: 0; font-size: 14px; font-weight: 800; color: var(--text); }
-  .daymap-sub { margin: 2px 0 0; font-size: 11.5px; color: var(--text-secondary); }
-  .daymap-arrow { margin-left: auto; font-size: 20px; color: var(--accent-ink); flex: 0 0 auto; }
-  .daymap-edit { position: absolute; top: 7px; right: 7px; background: rgba(255,255,255,0.8); }
-  .daymap-add {
-    display: block; width: 100%; text-align: center; background: var(--surface); border: 1px dashed var(--line);
-    color: var(--text-secondary); font-size: 13px; font-weight: 700; padding: 12px; border-radius: 16px; cursor: pointer; font-family: inherit;
-  }
-  .daymap-add:hover { background: var(--surface-sunken); }
-  .daymap-form { background: var(--surface-sunken); border-radius: 16px; padding: 12px; }
-  .daymap-form input {
-    width: 100%; border: 1.5px solid var(--line); background: var(--surface); border-radius: 10px;
-    padding: 9px 10px; font-size: 13.5px; color: var(--text); font-family: inherit; margin-bottom: 8px;
-  }
-
   .stop-card, .transit-card, .vote-card, .add-form {
     background: var(--surface); border-radius: 20px; box-shadow: var(--shadow); padding: 12px 14px; position: relative;
   }
@@ -133,7 +111,7 @@
     flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 50%;
     border: none; cursor: pointer; text-decoration: none;
   }
-  a.maplink-icon { width: 30px; height: 30px; background: var(--naver); color: var(--naver-ink); transition: filter 0.15s ease; }
+  a.maplink-icon { width: 30px; height: 30px; background: var(--naver-soft); color: var(--naver); transition: filter 0.15s ease; }
   a.maplink-icon svg { width: 14px; height: 14px; }
   a.maplink-icon:hover { filter: brightness(1.05); }
   a.maplink-icon:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -180,7 +158,7 @@
     flex: 1; min-width: 0; border: 1.5px solid var(--line); background: var(--surface); border-radius: 10px;
     padding: 9px 10px; font-size: 13.5px; color: var(--text); font-family: inherit;
   }
-  .form-grid input:focus, .add-form > input:focus, .daymap-form input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .form-grid input:focus, .add-form > input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .add-form > input {
     width: 100%; border: 1.5px solid var(--line); background: var(--surface); border-radius: 10px;
     padding: 9px 10px; font-size: 13.5px; color: var(--text); font-family: inherit; margin-bottom: 10px;

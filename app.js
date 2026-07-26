@@ -53,8 +53,7 @@ const TRIP_START = "2026-07-29";
       icon: (main, hole) => svg(`<rect x="4.5" y="4.2" width="15" height="13.6" rx="3.4" fill="${main}"/><rect x="6.4" y="6.3" width="11.2" height="4.2" rx="1.1" fill="${hole}"/><circle cx="8" cy="19.3" r="1.4" fill="${main}"/><circle cx="16" cy="19.3" r="1.4" fill="${main}"/>`) }
   };
 
-  const mapIcon = svg(`<path d="M12 21s7-6.2 7-11.6C19 5.3 15.9 2 12 2S5 5.3 5 9.4C5 14.8 12 21 12 21Z" fill="currentColor"/><circle cx="12" cy="9.3" r="2.7" fill="var(--naver)"/>`);
-  const daymapIcon = svg(`<path d="M9 3.4 3 5.8v14.8l6-2.4 6 2.4 6-2.4V3.4l-6 2.4-6-2.4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 3.4v14.8M15 5.8v14.8" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="11" r="2" fill="currentColor"/>`);
+  const mapIcon = svg(`<path d="M12 21s7-6.2 7-11.6C19 5.3 15.9 2 12 2S5 5.3 5 9.4C5 14.8 12 21 12 21Z" fill="currentColor"/><circle cx="12" cy="9.3" r="2.7" fill="var(--naver-soft)"/>`);
   const pencilIcon = svg(`<path d="M3 21l1-4.2L14.5 6.2a1.2 1.2 0 0 1 1.7 0l1.6 1.6a1.2 1.2 0 0 1 0 1.7L7.2 20l-4.2 1z" fill="currentColor"/>`);
   const heartIcon = svg(`<path d="M12 21s-7.2-4.4-9.6-8.9C.7 8.7 2.1 5.2 5.5 4.4c2-.5 4 .3 5 2.1 1-1.8 3-2.6 5-2.1 3.4.8 4.8 4.3 3.1 7.7C19.2 16.6 12 21 12 21z" fill="currentColor"/>`);
 
@@ -98,7 +97,6 @@ const TRIP_START = "2026-07-29";
   // ---- local, per-day UI state (not synced — just "what form is open") ----
   function freshDraft() { return { time: "", name: "", meta: "", mapUrl: "", duration: "" }; }
   let formState = [0, 1, 2, 3].map(() => ({ open: null, category: "food", mode: "car", editId: null, insertAt: null, draft: freshDraft() }));
-  let dayMapEdit = [0, 1, 2, 3].map(() => false);
   let voteDrafts = {}; // itemId -> current text in that vote-card's "add candidate" input
   let pendingDelete = null;
 
@@ -189,35 +187,6 @@ const TRIP_START = "2026-07-29";
         <button type="button" class="btn-primary" data-action="submit-vote" data-day="${di}">투표 카드 만들기</button>
       </div>
     </div>`;
-  }
-
-  function daymapSectionHtml(di, day) {
-    if (dayMapEdit[di]) {
-      const val = day.map_url || "";
-      const removeBtn = val ? `<button type="button" class="btn-text-danger" data-action="remove-daymap" data-day="${di}">링크 삭제</button>` : "";
-      return `<div class="daymap-form" data-day="${di}">
-        <input type="text" placeholder="이 날짜의 네이버지도 모음 링크" value="${esc(val)}" data-role="f-daymap">
-        <div class="form-actions">
-          ${removeBtn}
-          <button type="button" class="btn-cancel" data-action="cancel-daymap" data-day="${di}">취소</button>
-          <button type="button" class="btn-primary" data-action="save-daymap" data-day="${di}">저장</button>
-        </div>
-      </div>`;
-    }
-    if (day.map_url) {
-      return `<div class="daymap-wrap">
-        <a class="daymap-card" href="${esc(day.map_url)}" target="_blank" rel="noopener">
-          <span class="daymap-icon">${daymapIcon}</span>
-          <span class="title-block">
-            <p class="daymap-title">Day ${di + 1} 지도 모아보기</p>
-            <p class="daymap-sub">네이버지도에서 전체 장소 보기</p>
-          </span>
-          <span class="daymap-arrow">›</span>
-        </a>
-        <button type="button" class="icon-btn daymap-edit" data-action="open-daymap" data-day="${di}" aria-label="지도 링크 수정">${pencilIcon}</button>
-      </div>`;
-    }
-    return `<button type="button" class="daymap-add" data-action="open-daymap" data-day="${di}">＋ 지도 모음 링크 추가</button>`;
   }
 
   function voteCardHtml(di, item) {
@@ -314,7 +283,6 @@ const TRIP_START = "2026-07-29";
           ${day.theme ? `<p class="theme">${esc(day.theme)}</p>` : ""}
         </div>
         <div class="day-body">
-          ${daymapSectionHtml(di, day)}
           ${pieces.join("")}
           ${emptyHtml}${formHtml}${actionsHtml}
         </div>
@@ -412,11 +380,6 @@ const TRIP_START = "2026-07-29";
       if (error) console.error(error);
     }
   }
-  async function saveDayMap(di, url) {
-    const { error } = await supabase.from("days").update({ map_url: url }).eq("day_index", di);
-    if (error) console.error(error);
-  }
-
   // ------------------------------------------------------------ interaction --
   daysEl.addEventListener("input", (e) => {
     if (e.target.matches('[data-role="f-time"]')) {
@@ -552,14 +515,6 @@ const TRIP_START = "2026-07-29";
       delete voteDrafts[itemId];
     }
     else if (action === "toggle-vote") { toggleVote(btn.dataset.id); }
-    else if (action === "open-daymap") { dayMapEdit[di] = true; render(); }
-    else if (action === "cancel-daymap") { dayMapEdit[di] = false; render(); }
-    else if (action === "remove-daymap") { saveDayMap(di, ""); dayMapEdit[di] = false; render(); }
-    else if (action === "save-daymap") {
-      const form = btn.closest(".daymap-form");
-      saveDayMap(di, form.querySelector('[data-role="f-daymap"]').value.trim());
-      dayMapEdit[di] = false; render();
-    }
   });
 
   overlayEl.addEventListener("click", (e) => {
