@@ -62,13 +62,6 @@ const TRIP_START = "2026-07-29";
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
-  function formatTime(t) {
-    if (!t) return null;
-    const [hh, mm] = t.split(":").map(Number);
-    const period = hh < 12 ? "오전" : "오후";
-    let h12 = hh % 12; if (h12 === 0) h12 = 12;
-    return { period, hm: `${h12}:${String(mm).padStart(2, "0")}` };
-  }
   function dDayLabel(startStr) {
     const start = new Date(startStr + "T00:00:00");
     const now = new Date(); now.setHours(0, 0, 0, 0);
@@ -229,8 +222,7 @@ const TRIP_START = "2026-07-29";
 
   function voteCardHtml(di, item) {
     const cat = CATEGORIES[item.category] || CATEGORIES.etc;
-    const t = formatTime(item.time);
-    const timeHtml = t ? `<span class="period">${t.period}</span><span class="hm">${t.hm}</span>` : `<span class="dash">·</span>`;
+    const timeHtml = item.time ? `<span class="hm">${item.time}</span>` : `<span class="dash">·</span>`;
     const cands = candidatesForItem(item.id);
     const rows = cands.map((c) => {
       const vs = votesForCandidate(c.id);
