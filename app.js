@@ -3,8 +3,8 @@
 // supabase/schema.sql in its SQL editor (Dashboard -> Project Settings -> API
 // for the URL and the "anon public" key). See README.md for the full setup.
 // ---------------------------------------------------------------------------
-const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
-const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
+const SUPABASE_URL = "https://lrwwiqtfxalgzvhqxjhz.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_wd8ffERg_lBJdC4UiSMbsA_7ydTVUu9";
 
 const TRIP_START = "2026-07-29";
 
