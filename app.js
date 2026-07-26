@@ -243,8 +243,7 @@ const TRIP_START = "2026-07-29";
           pieces.push(voteCardHtml(di, item));
         } else {
           const cat = CATEGORIES[item.category] || CATEGORIES.etc;
-          const t = formatTime(item.time);
-          const timeHtml = t ? `<span class="period">${t.period}</span><span class="hm">${t.hm}</span>` : `<span class="dash">·</span>`;
+          const timeHtml = item.time ? `<span class="hm">${item.time}</span>` : `<span class="dash">·</span>`;
           const mapHref = item.map_url && item.map_url.trim() ? esc(item.map_url.trim()) : `https://map.naver.com/p/search/${encodeURIComponent(item.name)}`;
           pieces.push(`<div class="stop-card" data-kind="item" data-day="${di}" data-id="${item.id}">
             <div class="item-main">
