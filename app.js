@@ -132,7 +132,15 @@ const TRIP_START = "2026-07-29";
     headerEl.classList.toggle("compact", (window.scrollY || document.documentElement.scrollTop) > 24);
   }
   window.addEventListener("scroll", syncHeader, { passive: true });
-  window.addEventListener("resize", sizeHeaderSpacer);
+  // Only re-measure when the width actually changes. iOS fires resize as its
+  // address bar collapses during a scroll, and re-measuring there briefly
+  // expands the header — which is the "툭 튀는" jump on the first scroll.
+  let lastWidth = window.innerWidth;
+  window.addEventListener("resize", () => {
+    if (window.innerWidth === lastWidth) return;
+    lastWidth = window.innerWidth;
+    sizeHeaderSpacer();
+  });
   sizeHeaderSpacer();
   syncHeader();
 
@@ -152,6 +160,16 @@ const TRIP_START = "2026-07-29";
   }
 
   function setSync(state) { syncDot.className = "sync-dot" + (state === "live" ? " live" : state === "err" ? " err" : ""); }
+
+  let toastTimer = null;
+  function showToast(msg) {
+    const el = document.getElementById("toast");
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add("show");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 5000);
+  }
 
   // ---------------------------------------------------------------- render --
   function captureDraft(di) {
@@ -449,40 +467,81 @@ const TRIP_START = "2026-07-29";
   }
 
   // ------------------------------------------------------------- mutations --
-  async function addItem(di, kind, fields, insertAt) {
-    const sort_order = computeSortOrder(di, insertAt);
-    const { error } = await supabase.from("items").insert({ day_index: di, kind, sort_order, ...fields });
-    if (error) console.error(error);
-  }
-  async function updateItem(id, fields) {
-    const { error } = await supabase.from("items").update(fields).eq("id", id);
-    if (error) console.error(error);
-  }
-  async function deleteItem(id) {
-    const { error } = await supabase.from("items").delete().eq("id", id);
-    if (error) console.error(error);
-  }
-  async function addCandidate(itemId, name) {
-    const { error } = await supabase.from("candidates").insert({ item_id: itemId, name });
-    if (error) console.error(error);
-  }
-  async function deleteCandidate(id) {
-    const { error } = await supabase.from("candidates").delete().eq("id", id);
-    if (error) console.error(error);
-  }
-  async function updateCandidate(id, fields) {
-    const { error } = await supabase.from("candidates").update(fields).eq("id", id);
-    if (error) console.error(error);
-  }
-  async function toggleVote(candidateId) {
-    const already = votes.some((v) => v.candidate_id === candidateId && v.voter_id === VOTER_ID);
-    if (already) {
-      const { error } = await supabase.from("candidate_votes").delete().eq("candidate_id", candidateId).eq("voter_id", VOTER_ID);
-      if (error) console.error(error);
-    } else {
-      const { error } = await supabase.from("candidate_votes").insert({ candidate_id: candidateId, voter_id: VOTER_ID });
-      if (error) console.error(error);
+  // Every write refetches on success rather than waiting for the realtime
+  // event: if realtime isn't delivering, the change would otherwise never show
+  // up for the person who made it. Failures surface as a toast instead of only
+  // going to the console.
+  async function commit(runner, label) {
+    try {
+      const { error } = await runner();
+      if (error) throw error;
+      await fetchAll();
+      return true;
+    } catch (err) {
+      console.error(label, err);
+      showToast(`${label}에 실패했어요: ${err.message || err}`);
+      return false;
     }
+  }
+
+  // distance_m was added later; tolerate a database that hasn't run the
+  // migration yet by retrying without it.
+  function isMissingColumn(error, col) {
+    if (!error) return false;
+    const text = `${error.message || ""} ${error.details || ""} ${error.hint || ""}`;
+    return error.code === "PGRST204" || (text.includes(col) && /column|schema cache/i.test(text));
+  }
+  async function writeItem(op, row, id) {
+    const send = (payload) => (op === "insert"
+      ? supabase.from("items").insert(payload)
+      : supabase.from("items").update(payload).eq("id", id));
+    let res = await send(row);
+    if (res.error && "distance_m" in row && isMissingColumn(res.error, "distance_m")) {
+      const retry = { ...row };
+      delete retry.distance_m;
+      res = await send(retry);
+    }
+    return res;
+  }
+
+  function addItem(di, kind, fields, insertAt) {
+    const sort_order = computeSortOrder(di, insertAt);
+    return commit(() => writeItem("insert", { day_index: di, kind, sort_order, ...fields }), "일정 추가");
+  }
+  function updateItem(id, fields) {
+    return commit(() => writeItem("update", { ...fields }, id), "수정");
+  }
+  function deleteItem(id) {
+    return commit(() => supabase.from("items").delete().eq("id", id), "삭제");
+  }
+  function addCandidate(itemId, name) {
+    return commit(() => supabase.from("candidates").insert({ item_id: itemId, name }), "후보 추가");
+  }
+  function deleteCandidate(id) {
+    return commit(() => supabase.from("candidates").delete().eq("id", id), "후보 삭제");
+  }
+  function updateCandidate(id, fields) {
+    return commit(() => supabase.from("candidates").update(fields).eq("id", id), "후보 수정");
+  }
+  function toggleVote(candidateId) {
+    const already = votes.some((v) => v.candidate_id === candidateId && v.voter_id === VOTER_ID);
+    return commit(() => (already
+      ? supabase.from("candidate_votes").delete().eq("candidate_id", candidateId).eq("voter_id", VOTER_ID)
+      : supabase.from("candidate_votes").insert({ candidate_id: candidateId, voter_id: VOTER_ID })), "투표");
+  }
+  // Creates the vote card, then its starting candidates.
+  function addVoteItem(di, insertAt, fields, names) {
+    return commit(async () => {
+      const res = await supabase.from("items")
+        .insert({ day_index: di, kind: "vote", sort_order: computeSortOrder(di, insertAt), ...fields })
+        .select().single();
+      if (res.error) return res;
+      for (const nm of names) {
+        const c = await supabase.from("candidates").insert({ item_id: res.data.id, name: nm });
+        if (c.error) return c;
+      }
+      return { error: null };
+    }, "투표 카드 추가");
   }
 
   // ------------------------------------------------------------ interaction --
@@ -587,16 +646,17 @@ const TRIP_START = "2026-07-29";
         const names = fs.draft.candidateNames || [];
         if (fs.editId) {
           const voteItemId = fs.editId;
-          (async () => {
-            await updateItem(voteItemId, { time, category: fs.category, name: title });
-            for (const nm of names) await supabase.from("candidates").insert({ item_id: voteItemId, name: nm });
-          })();
+          commit(async () => {
+            const up = await supabase.from("items").update({ time, category: fs.category, name: title }).eq("id", voteItemId);
+            if (up.error) return up;
+            for (const nm of names) {
+              const c = await supabase.from("candidates").insert({ item_id: voteItemId, name: nm });
+              if (c.error) return c;
+            }
+            return { error: null };
+          }, "투표 카드 수정");
         } else {
-          (async () => {
-            const { data, error } = await supabase.from("items").insert({ day_index: di, kind: "vote", sort_order: computeSortOrder(di, fs.insertAt), time, category: fs.category, name: title }).select().single();
-            if (error) { console.error(error); return; }
-            for (const nm of names) await supabase.from("candidates").insert({ item_id: data.id, name: nm });
-          })();
+          addVoteItem(di, fs.insertAt, { time, category: fs.category, name: title }, names);
         }
         collapseThenRender(di, () => { fs.open = null; fs.editId = null; });
         return;

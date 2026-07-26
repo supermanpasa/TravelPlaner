@@ -52,7 +52,8 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  .screen { max-width: 460px; margin: 0 auto; min-height: 100vh; padding-bottom: 48px; position: relative; }
+  /* svh keeps the height stable while iOS shows/hides its address bar. */
+  .screen { max-width: 460px; margin: 0 auto; min-height: 100vh; min-height: 100svh; padding-bottom: 48px; position: relative; }
   /* Fixed to the viewport, so the blue stays behind the content while the page
      scrolls instead of scrolling away and leaving a bare white background. */
   body::before {
@@ -274,6 +275,15 @@
   .overlay-desc { font-size: 13px; color: var(--text-secondary); margin: 0 0 18px; }
   .overlay-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(12px);
+    max-width: 340px; width: calc(100% - 40px); z-index: 60;
+    background: #2b2f3a; color: #fff; font-size: 13px; font-weight: 600; line-height: 1.5;
+    padding: 12px 16px; border-radius: 14px; box-shadow: 0 8px 26px rgba(0, 0, 0, 0.28);
+    opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
   .config-warning { margin: 40px 20px; padding: 18px; background: #fff4ea; border: 1px solid #f3d9b8; border-radius: 16px; font-size: 13px; line-height: 1.7; color: #6b4a1c; }
   .config-warning code { background: #fff; padding: 1px 5px; border-radius: 5px; }
 
@@ -305,6 +315,7 @@
   <footer class="note">초록 아이콘을 누르면 네이버지도로 연결돼요. 연필 아이콘으로 수정, 카드를 길게 누르면 삭제할 수 있어요. 모든 변경 사항은 이 링크를 연 모두에게 실시간으로 공유돼요.</footer>
   <div id="overlayRoot"></div>
 </div>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="app.js"></script>
