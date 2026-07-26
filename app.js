@@ -183,6 +183,7 @@ const TRIP_START = "2026-07-29";
         <div class="time-block">${timeHtml}</div>
         <span class="badge" style="background:${cat.bg}">${cat.icon(cat.fg, cat.bg)}</span>
         <div class="title-block"><span class="vote-label">🗳️ 후보 투표중</span></div>
+        <button class="icon-btn" data-action="edit-item" data-day="${di}" data-id="${item.id}" aria-label="수정">${pencilIcon}</button>
       </div>
       <ul class="vote-candidates">${rows || `<li style="padding:4px 2px;color:var(--text-faint);font-size:12.5px;">아직 후보가 없어요</li>`}</ul>
       <div class="poll-add-row">
@@ -207,7 +208,7 @@ const TRIP_START = "2026-07-29";
           pieces.push(stopFormHtml(di, fs));
         }
 
-        if (fs.editId === item.id && item.kind === "stop") {
+        if (fs.editId === item.id && (item.kind === "stop" || item.kind === "vote")) {
           pieces.push(stopFormHtml(di, fs));
         } else if (item.kind === "vote") {
           pieces.push(voteCardHtml(di, item));
@@ -438,14 +439,23 @@ const TRIP_START = "2026-07-29";
     }
     else if (action === "edit-item") {
       const item = items.find((it) => it.id === btn.dataset.id);
-      if (!item || item.kind !== "stop") return; // vote / legacy transit cards aren't edited inline
-      formState[di] = {
-        open: "stop", category: item.category, editId: item.id, insertAt: null,
-        draft: {
-          time: item.time || "", name: item.name || "", meta: item.meta || "", mapUrl: item.map_url || "",
-          distance: item.distance_m != null ? String(item.distance_m) : "", voteMode: false, candidateNames: []
-        }
-      };
+      if (!item) return;
+      if (item.kind === "stop") {
+        formState[di] = {
+          open: "stop", category: item.category, editId: item.id, insertAt: null,
+          draft: {
+            time: item.time || "", name: item.name || "", meta: item.meta || "", mapUrl: item.map_url || "",
+            distance: item.distance_m != null ? String(item.distance_m) : "", voteMode: false, candidateNames: []
+          }
+        };
+      } else if (item.kind === "vote") {
+        formState[di] = {
+          open: "stop", category: item.category, editId: item.id, insertAt: null,
+          draft: { time: item.time || "", name: "", meta: "", mapUrl: "", distance: "", voteMode: true, candidateNames: [] }
+        };
+      } else {
+        return; // legacy transit cards aren't edited inline
+      }
       render();
     }
     else if (action === "submit-stop") {
@@ -455,11 +465,19 @@ const TRIP_START = "2026-07-29";
 
       if (fs.draft.voteMode) {
         const names = fs.draft.candidateNames || [];
-        (async () => {
-          const { data, error } = await supabase.from("items").insert({ day_index: di, kind: "vote", sort_order: computeSortOrder(di, fs.insertAt), time, category: fs.category }).select().single();
-          if (error) { console.error(error); return; }
-          for (const nm of names) await supabase.from("candidates").insert({ item_id: data.id, name: nm });
-        })();
+        if (fs.editId) {
+          const voteItemId = fs.editId;
+          (async () => {
+            await updateItem(voteItemId, { time, category: fs.category });
+            for (const nm of names) await supabase.from("candidates").insert({ item_id: voteItemId, name: nm });
+          })();
+        } else {
+          (async () => {
+            const { data, error } = await supabase.from("items").insert({ day_index: di, kind: "vote", sort_order: computeSortOrder(di, fs.insertAt), time, category: fs.category }).select().single();
+            if (error) { console.error(error); return; }
+            for (const nm of names) await supabase.from("candidates").insert({ item_id: data.id, name: nm });
+          })();
+        }
         fs.open = null; fs.editId = null; render();
         return;
       }
