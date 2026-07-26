@@ -106,7 +106,47 @@ const TRIP_START = "2026-07-29";
   const daysEl = document.getElementById("days");
   const overlayEl = document.getElementById("overlayRoot");
   const syncDot = document.getElementById("syncDot");
+  const headerEl = document.querySelector("header.trip");
   document.getElementById("ddayBadge").textContent = dDayLabel(TRIP_START);
+
+  // The header is fixed, so a spacer of its expanded height stands in for it in
+  // the flow. Keeping that height constant means shrinking the header on scroll
+  // never shifts the content underneath.
+  const spacerEl = document.getElementById("headerSpacer");
+  function sizeHeaderSpacer() {
+    const wasCompact = headerEl.classList.contains("compact");
+    headerEl.style.transition = "none";
+    headerEl.classList.remove("compact");
+    const expanded = headerEl.offsetHeight;
+    if (wasCompact) headerEl.classList.add("compact");
+    headerEl.offsetHeight; // flush before restoring the transition
+    headerEl.style.transition = "";
+    spacerEl.style.height = expanded + "px";
+  }
+
+  // Shrink the header to a compact bar once the page is scrolled.
+  function syncHeader() {
+    headerEl.classList.toggle("compact", (window.scrollY || document.documentElement.scrollTop) > 24);
+  }
+  window.addEventListener("scroll", syncHeader, { passive: true });
+  window.addEventListener("resize", sizeHeaderSpacer);
+  sizeHeaderSpacer();
+  syncHeader();
+
+  // Once the trip is underway, open the page on today's day instead of day 1.
+  let jumpedToToday = false;
+  function jumpToToday() {
+    if (jumpedToToday || !days.length) return;
+    const start = new Date(TRIP_START + "T00:00:00");
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const idx = Math.round((today - start) / 86400000);
+    jumpedToToday = true;
+    if (idx <= 0 || idx >= days.length) return; // before the trip, or already over
+    const el = document.getElementById(`day-${idx + 1}`);
+    if (!el) return;
+    el.scrollIntoView({ block: "start" });
+    syncHeader(); // programmatic scrolls don't always fire a scroll event
+  }
 
   function setSync(state) { syncDot.className = "sync-dot" + (state === "live" ? " live" : state === "err" ? " err" : ""); }
 
@@ -145,7 +185,7 @@ const TRIP_START = "2026-07-29";
         ${names.length ? `<div class="chip-row">${nameChips}</div>` : ""}
         <div class="form-grid">
           <input type="text" placeholder="후보 장소 이름 입력 후 추가" maxlength="40" data-role="f-candidate">
-          <button type="button" class="btn-cancel" style="flex:0 0 auto;" data-action="add-draft-candidate" data-day="${di}">추가</button>
+          <button type="button" class="btn-inline-add" data-action="add-draft-candidate" data-day="${di}">추가</button>
         </div>`;
     } else {
       bodyHtml = `<div class="form-grid">
@@ -380,6 +420,7 @@ const TRIP_START = "2026-07-29";
       votes = voteRes.data;
       setSync("live");
       render();
+      jumpToToday();
     } catch (err) {
       console.error("fetchAll failed", err);
       setSync("err");

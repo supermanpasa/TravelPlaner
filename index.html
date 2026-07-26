@@ -54,19 +54,42 @@
     background: linear-gradient(180deg, var(--bg-sky-top) 0%, #cdeafd 18%, #dcf0fb 38%, #ebf5fb 60%, var(--bg) 100%);
     z-index: 0;
   }
-  header.trip, nav.daynav, main, footer.note, #overlayRoot { position: relative; z-index: 1; }
+  nav.daynav, main, footer.note, #overlayRoot { position: relative; z-index: 1; }
 
-  header.trip { position: sticky; top: 0; z-index: 5; padding: 26px 20px 14px; }
-  .eyebrow-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
+  /* Fixed (not sticky) header: it carries its own slice of the sky gradient so
+     the blue stays behind the title while scrolling, and shrinks to a compact
+     bar. It's fixed + a spacer of the expanded height so that shrinking it
+     never reflows the page underneath. Gradient stops are matched to the page
+     gradient at the header's bottom edge so the seam is invisible at the top. */
+  header.trip {
+    position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 460px;
+    z-index: 20; padding: 26px 20px 14px;
+    background: linear-gradient(180deg, var(--bg-sky-top) 0%, #cdeafd 68%, #d3ecfc 100%);
+    transition: padding 0.22s ease, box-shadow 0.22s ease;
+  }
+  header.trip.compact { padding: 9px 20px 9px; box-shadow: 0 2px 14px rgba(15, 35, 60, 0.1); }
+
+  .eyebrow-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; overflow: hidden; max-height: 20px; opacity: 1; transition: max-height 0.22s ease, opacity 0.16s ease, margin-bottom 0.22s ease; }
+  header.trip.compact .eyebrow-row { max-height: 0; opacity: 0; margin-bottom: 0; }
   .eyebrow { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: var(--accent-ink); letter-spacing: 0.03em; }
   .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
-  .badge-row { display: flex; align-items: center; gap: 6px; }
+
+  .title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .badge-row { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
   .dday { background: var(--accent-ink); color: #fff; font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 8px; letter-spacing: 0.01em; }
   .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); flex: 0 0 auto; }
   .sync-dot.live { background: #1fbf6a; }
   .sync-dot.err { background: var(--danger); }
-  h1.title { font-size: 26px; font-weight: 800; margin: 0 0 4px; letter-spacing: -0.01em; text-wrap: balance; color: var(--text); }
-  .dates { font-size: 14px; color: var(--text-secondary); font-variant-numeric: tabular-nums; margin: 0; }
+
+  h1.title { font-size: 26px; font-weight: 800; margin: 0; letter-spacing: -0.01em; color: var(--text); transition: font-size 0.22s ease; }
+  header.trip.compact h1.title { font-size: 17px; }
+  .dates { font-size: 14px; color: var(--text-secondary); font-variant-numeric: tabular-nums; margin: 4px 0 0; overflow: hidden; max-height: 22px; opacity: 1; transition: max-height 0.22s ease, opacity 0.16s ease, margin-top 0.22s ease; }
+  header.trip.compact .dates { max-height: 0; opacity: 0; margin-top: 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    header.trip, .eyebrow-row, .dates, h1.title { transition: none; }
+  }
 
   nav.daynav { display: flex; gap: 8px; padding: 14px 20px 4px; overflow-x: auto; scrollbar-width: none; }
   nav.daynav::-webkit-scrollbar { display: none; }
@@ -79,7 +102,7 @@
   main { padding: 10px 16px 0; display: flex; flex-direction: column; gap: 18px; }
   /* Each day is a tinted panel so its cards visibly belong together. */
   section.day {
-    scroll-margin-top: 90px;
+    scroll-margin-top: 68px;
     background: rgba(23, 63, 110, 0.05);
     border: 1px solid rgba(23, 63, 110, 0.07);
     border-radius: 26px;
@@ -226,6 +249,14 @@
   }
   .poll-add-row button:hover { filter: brightness(1.1); }
 
+  /* "추가" next to the candidate field inside the edit form — same blue as the
+     one on the vote card, so both add-buttons read as the same control. */
+  .btn-inline-add {
+    flex: 0 0 auto; border: none; background: var(--accent); color: #fff; font-weight: 700; font-size: 13px;
+    padding: 9px 16px; border-radius: 10px; cursor: pointer; font-family: inherit;
+  }
+  .btn-inline-add:hover { filter: brightness(1.1); }
+
   footer.note { padding: 28px 24px 4px; text-align: center; font-size: 12px; color: var(--text-faint); line-height: 1.6; }
 
   .overlay-backdrop { position: fixed; inset: 0; background: rgba(15, 25, 45, 0.45); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 24px; }
@@ -246,14 +277,17 @@
   <header class="trip">
     <div class="eyebrow-row">
       <div class="eyebrow"><span class="dot"></span>JEJU TRIP</div>
+    </div>
+    <div class="title-row">
+      <h1 class="title">제주 여행</h1>
       <div class="badge-row">
         <span class="sync-dot" id="syncDot" title="동기화 상태"></span>
         <span class="dday" id="ddayBadge"></span>
       </div>
     </div>
-    <h1 class="title">제주 여행</h1>
     <p class="dates">2026.07.29 (수) — 08.01 (토) · 3박 4일</p>
   </header>
+  <div id="headerSpacer" aria-hidden="true"></div>
 
   <nav class="daynav" id="daynav"></nav>
   <main id="days"></main>
