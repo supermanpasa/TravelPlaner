@@ -306,6 +306,18 @@ const TRIP_START = "2026-07-29";
     setTimeout(openReveals, 80); // safety net if rAF is throttled (e.g. a backgrounded tab)
   }
 
+  // Collapse the open form in a day with the same easing it opened with, then
+  // apply the state change and re-render. Without this the form would vanish
+  // instantly on cancel/submit while opening was animated.
+  const REVEAL_MS = 320;
+  function collapseThenRender(di, mutate) {
+    const reveal = daysEl.querySelector(`#day-${di + 1} .reveal`);
+    const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!reveal || reduced) { mutate(); render(); return; }
+    reveal.classList.remove("open");
+    setTimeout(() => { mutate(); render(); }, REVEAL_MS);
+  }
+
   function renderOverlay() {
     if (!pendingDelete) { overlayEl.innerHTML = ""; return; }
     const title = pendingDelete.kind === "candidate" ? "이 후보를 삭제할까요?" : "이 일정을 삭제할까요?";
@@ -453,7 +465,7 @@ const TRIP_START = "2026-07-29";
       const at = btn.dataset.at !== undefined ? Number(btn.dataset.at) : itemsForDay(di).length;
       formState[di] = { open: "stop", category: "food", editId: null, insertAt: at, draft: freshDraft() }; render();
     }
-    else if (action === "cancel-form") { fs.open = null; fs.editId = null; render(); }
+    else if (action === "cancel-form") { collapseThenRender(di, () => { fs.open = null; fs.editId = null; }); }
     else if (action === "pick-cat") { captureDraft(di); fs.category = btn.dataset.cat; render(); }
     else if (action === "toggle-vote-mode") { captureDraft(di); fs.draft.voteMode = !fs.draft.voteMode; render(); }
     else if (action === "add-draft-candidate") {
@@ -512,7 +524,7 @@ const TRIP_START = "2026-07-29";
             for (const nm of names) await supabase.from("candidates").insert({ item_id: data.id, name: nm });
           })();
         }
-        fs.open = null; fs.editId = null; render();
+        collapseThenRender(di, () => { fs.open = null; fs.editId = null; });
         return;
       }
 
@@ -527,7 +539,7 @@ const TRIP_START = "2026-07-29";
       } else {
         addItem(di, "stop", { time, category: fs.category, name, meta, map_url: mapUrl, distance_m }, fs.insertAt);
       }
-      fs.open = null; fs.editId = null; render();
+      collapseThenRender(di, () => { fs.open = null; fs.editId = null; });
     }
     else if (action === "add-candidate") {
       const itemId = btn.dataset.item;

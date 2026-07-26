@@ -76,13 +76,23 @@
     white-space: nowrap; box-shadow: var(--shadow);
   }
 
-  main { padding: 10px 20px 0; display: flex; flex-direction: column; gap: 22px; }
-  section.day { scroll-margin-top: 90px; }
-  .day-head { padding: 6px 4px 12px; }
-  .day-head .top-row { display: flex; align-items: baseline; gap: 10px; }
-  .day-head .n { font-size: 20px; font-weight: 800; }
-  .day-head .d { font-size: 14px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-  .day-head .theme { margin: 2px 0 0; font-size: 13px; font-weight: 700; color: var(--accent-ink); }
+  main { padding: 10px 16px 0; display: flex; flex-direction: column; gap: 18px; }
+  /* Each day is a tinted panel so its cards visibly belong together. */
+  section.day {
+    scroll-margin-top: 90px;
+    background: rgba(23, 63, 110, 0.05);
+    border: 1px solid rgba(23, 63, 110, 0.07);
+    border-radius: 26px;
+    padding: 14px 12px;
+  }
+  .day-head { padding: 2px 4px 12px; }
+  .day-head .top-row { display: flex; align-items: center; gap: 9px; }
+  .day-head .n {
+    font-size: 13px; font-weight: 800; color: #fff; background: var(--accent-ink);
+    padding: 4px 11px; border-radius: 999px; letter-spacing: 0.01em;
+  }
+  .day-head .d { font-size: 14.5px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .day-head .theme { margin: 7px 0 0 2px; font-size: 12.5px; font-weight: 700; color: var(--text-secondary); }
   .day-body { display: flex; flex-direction: column; gap: 8px; }
 
   .stop-card, .transit-card, .vote-card, .add-form {
