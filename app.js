@@ -113,14 +113,17 @@ const TRIP_START = "2026-07-29";
   // the flow. Keeping that height constant means shrinking the header on scroll
   // never shifts the content underneath.
   const spacerEl = document.getElementById("headerSpacer");
+  const headerInner = headerEl.querySelector(".trip-inner");
   function sizeHeaderSpacer() {
     const wasCompact = headerEl.classList.contains("compact");
     headerEl.style.transition = "none";
+    headerInner.style.transition = "none";
     headerEl.classList.remove("compact");
     const expanded = headerEl.offsetHeight;
     if (wasCompact) headerEl.classList.add("compact");
-    headerEl.offsetHeight; // flush before restoring the transition
+    headerEl.offsetHeight; // flush before restoring the transitions
     headerEl.style.transition = "";
+    headerInner.style.transition = "";
     spacerEl.style.height = expanded + "px";
   }
 
