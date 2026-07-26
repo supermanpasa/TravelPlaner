@@ -83,7 +83,14 @@ const TRIP_START = "2026-07-29";
   let candidates = [];  // [{id, item_id, name, meta, map_url}]
   let votes = [];        // [{candidate_id, voter_id}]
 
-  function itemsForDay(di) { return items.filter((it) => it.day_index === di).sort((a, b) => a.sort_order - b.sort_order); }
+  // Two people inserting at the same position can land on the same sort_order.
+  // Tie-break on id so the order is at least identical for everyone rather than
+  // shuffling between refetches.
+  function itemsForDay(di) {
+    return items
+      .filter((it) => it.day_index === di)
+      .sort((a, b) => (a.sort_order - b.sort_order) || String(a.id).localeCompare(String(b.id)));
+  }
   function candidatesForItem(itemId) { return candidates.filter((c) => c.item_id === itemId); }
   function votesForCandidate(cid) { return votes.filter((v) => v.candidate_id === cid); }
 
@@ -553,6 +560,23 @@ const TRIP_START = "2026-07-29";
     }
     if (e.target.matches('[data-role="f-vote-candidate"]')) {
       voteDrafts[e.target.dataset.item] = e.target.value;
+    }
+
+    // Mirror every keystroke into state. A refetch (someone else's edit, or a
+    // realtime event) re-renders from state, so anything living only in the DOM
+    // would be wiped out mid-typing.
+    const openForm = e.target.closest(".add-form");
+    if (openForm) captureDraft(Number(openForm.dataset.day));
+
+    const candRow = e.target.closest(".poll-item-edit");
+    if (candRow) {
+      const st = candidateEditState[Number(candRow.dataset.day)];
+      if (st) {
+        const nameEl = candRow.querySelector('[data-role="f-cand-name"]');
+        const linkEl = candRow.querySelector('[data-role="f-cand-link"]');
+        if (nameEl) st.name = nameEl.value;
+        if (linkEl) st.mapUrl = linkEl.value;
+      }
     }
   });
 
