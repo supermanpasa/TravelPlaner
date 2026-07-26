@@ -70,6 +70,11 @@ const TRIP_START = "2026-07-29";
   function naverRouteUrl(fromName, toName) {
     return `https://map.naver.com/p/directions/${encodeURIComponent(fromName)}/${encodeURIComponent(toName)}/-/car`;
   }
+  function normalizeUrl(u) {
+    const t = (u || "").trim();
+    if (!t) return "";
+    return /^https?:\/\//i.test(t) ? t : "https://" + t;
+  }
 
   // ---- remote state (mirrors the Supabase tables) --------------------------
   let days = [];        // [{day_index, date_label, weekday, theme, map_url}]
@@ -165,7 +170,7 @@ const TRIP_START = "2026-07-29";
     const rows = cands.map((c) => {
       const vs = votesForCandidate(c.id);
       const votedByMe = vs.some((v) => v.voter_id === VOTER_ID);
-      const mapHref = c.map_url && c.map_url.trim() ? esc(c.map_url.trim()) : `https://map.naver.com/p/search/${encodeURIComponent(c.name)}`;
+      const mapHref = c.map_url && c.map_url.trim() ? esc(normalizeUrl(c.map_url)) : `https://map.naver.com/p/search/${encodeURIComponent(c.name)}`;
       return `<li class="poll-item${votedByMe ? " voted" : ""}" data-kind="candidate" data-day="${di}" data-id="${c.id}">
         <span class="poll-name">${esc(c.name)}</span>
         <a class="maplink-icon small" target="_blank" rel="noopener" href="${mapHref}" aria-label="네이버지도">${mapIcon}</a>
@@ -195,8 +200,13 @@ const TRIP_START = "2026-07-29";
       const dayItems = itemsForDay(di);
       const n = dayItems.length;
 
+      const showAddForm = fs.open && !fs.editId;
       const pieces = [];
       dayItems.forEach((item, idx) => {
+        if (showAddForm && fs.insertAt === idx) {
+          pieces.push(stopFormHtml(di, fs));
+        }
+
         if (fs.editId === item.id && item.kind === "stop") {
           pieces.push(stopFormHtml(di, fs));
         } else if (item.kind === "vote") {
@@ -214,7 +224,7 @@ const TRIP_START = "2026-07-29";
         } else {
           const cat = CATEGORIES[item.category] || CATEGORIES.etc;
           const timeHtml = item.time ? `<span class="hm">${item.time}</span>` : `<span class="dash">·</span>`;
-          const mapHref = item.map_url && item.map_url.trim() ? esc(item.map_url.trim()) : `https://map.naver.com/p/search/${encodeURIComponent(item.name)}`;
+          const mapHref = item.map_url && item.map_url.trim() ? esc(normalizeUrl(item.map_url)) : `https://map.naver.com/p/search/${encodeURIComponent(item.name)}`;
           pieces.push(`<div class="stop-card" data-kind="item" data-day="${di}" data-id="${item.id}">
             <div class="item-main">
               <div class="time-block">${timeHtml}</div>
@@ -231,11 +241,10 @@ const TRIP_START = "2026-07-29";
 
         if (!fs.open && idx < n - 1) {
           const next = dayItems[idx + 1];
-          if (item.kind === "stop" && next && next.kind === "stop") {
-            const distLabel = item.distance_m ? `${item.distance_m}m` : "경로 보기";
+          if (item.kind === "stop" && next && next.kind === "stop" && item.distance_m) {
             const routeHref = naverRouteUrl(item.name, next.name);
             pieces.push(`<div class="transit-connector">
-              <a class="distance-chip" target="_blank" rel="noopener" href="${routeHref}">${carIcon}<span>${distLabel}</span></a>
+              <a class="distance-chip" target="_blank" rel="noopener" href="${routeHref}">${carIcon}<span>${item.distance_m}m</span></a>
               <button type="button" class="insert-plus" data-action="open-stop" data-day="${di}" data-at="${idx + 1}" aria-label="여기에 추가">＋</button>
             </div>`);
           } else {
@@ -246,8 +255,10 @@ const TRIP_START = "2026-07-29";
         }
       });
 
-      const showAddForm = fs.open && !fs.editId;
-      const formHtml = showAddForm ? stopFormHtml(di, fs) : "";
+      if (showAddForm && fs.insertAt === n) {
+        pieces.push(stopFormHtml(di, fs));
+      }
+
       const emptyHtml = (n === 0 && !showAddForm) ? `<div class="empty-card"><p>아직 일정이 없어요</p><span>+ 버튼으로 장소를 추가해보세요</span></div>` : "";
       const actionsHtml = (!fs.open) ? `<div class="add-plus-row">
         <button type="button" class="insert-plus large" data-action="open-stop" data-day="${di}" data-at="${n}" aria-label="장소 추가">＋</button>
@@ -260,7 +271,7 @@ const TRIP_START = "2026-07-29";
         </div>
         <div class="day-body">
           ${pieces.join("")}
-          ${emptyHtml}${formHtml}${actionsHtml}
+          ${emptyHtml}${actionsHtml}
         </div>
       </section>`;
     }).join("");
@@ -456,7 +467,7 @@ const TRIP_START = "2026-07-29";
       const name = form.querySelector('[data-role="f-name"]').value.trim();
       if (!name) { form.querySelector('[data-role="f-name"]').focus(); return; }
       const meta = form.querySelector('[data-role="f-meta"]').value.trim();
-      const mapUrl = form.querySelector('[data-role="f-maplink"]').value.trim();
+      const mapUrl = normalizeUrl(form.querySelector('[data-role="f-maplink"]').value);
       const distRaw = form.querySelector('[data-role="f-distance"]').value.trim();
       const distance_m = distRaw ? Number(distRaw) : null;
       if (fs.editId) {
