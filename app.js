@@ -309,6 +309,34 @@ const TRIP_START = "2026-07-29";
   // Collapse the open form in a day with the same easing it opened with, then
   // apply the state change and re-render. Without this the form would vanish
   // instantly on cancel/submit while opening was animated.
+  // Swap just the open form's markup instead of re-rendering every day. A full
+  // render() would rebuild the whole list, replay the open animation and drop
+  // the caret — which reads as the form "reloading" on every chip click.
+  function refreshForm(di, focusRole) {
+    const form = daysEl.querySelector(`.add-form[data-day="${di}"]`);
+    if (!form) { render(); return; }
+
+    const active = document.activeElement;
+    const keepRole = focusRole || (active && active.dataset ? active.dataset.role : null);
+    let caret = null;
+    if (!focusRole && active && typeof active.selectionStart === "number") caret = active.selectionStart;
+
+    const holder = document.createElement("div");
+    holder.innerHTML = stopFormHtml(di, formState[di]);
+    const fresh = holder.firstElementChild;
+    form.replaceWith(fresh);
+
+    if (keepRole) {
+      const el = fresh.querySelector(`[data-role="${keepRole}"]`);
+      if (el) {
+        el.focus();
+        if (caret != null && el.setSelectionRange) {
+          try { el.setSelectionRange(caret, caret); } catch (err) { /* type doesn't support it */ }
+        }
+      }
+    }
+  }
+
   const REVEAL_MS = 320;
   function collapseThenRender(di, mutate) {
     const reveal = daysEl.querySelector(`#day-${di + 1} .reveal`);
@@ -466,20 +494,22 @@ const TRIP_START = "2026-07-29";
       formState[di] = { open: "stop", category: "food", editId: null, insertAt: at, draft: freshDraft() }; render();
     }
     else if (action === "cancel-form") { collapseThenRender(di, () => { fs.open = null; fs.editId = null; }); }
-    else if (action === "pick-cat") { captureDraft(di); fs.category = btn.dataset.cat; render(); }
-    else if (action === "toggle-vote-mode") { captureDraft(di); fs.draft.voteMode = !fs.draft.voteMode; render(); }
+    else if (action === "pick-cat") { captureDraft(di); fs.category = btn.dataset.cat; refreshForm(di); }
+    else if (action === "toggle-vote-mode") { captureDraft(di); fs.draft.voteMode = !fs.draft.voteMode; refreshForm(di); }
     else if (action === "add-draft-candidate") {
       const form = btn.closest(".add-form");
       const input = form.querySelector('[data-role="f-candidate"]');
       const val = input.value.trim();
       if (!val) { input.focus(); return; }
+      captureDraft(di);
       fs.draft.candidateNames = fs.draft.candidateNames || [];
       fs.draft.candidateNames.push(val);
-      render();
+      refreshForm(di, "f-candidate");
     }
     else if (action === "remove-draft-candidate") {
+      captureDraft(di);
       fs.draft.candidateNames.splice(Number(btn.dataset.idx), 1);
-      render();
+      refreshForm(di);
     }
     else if (action === "edit-item") {
       const item = items.find((it) => it.id === btn.dataset.id);
