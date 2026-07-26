@@ -99,6 +99,7 @@ const TRIP_START = "2026-07-29";
   function freshDraft() { return { time: "", name: "", meta: "", mapUrl: "", distance: "", voteMode: false, candidateNames: [] }; }
   let formState = [0, 1, 2, 3].map(() => ({ open: null, category: "food", editId: null, insertAt: null, draft: freshDraft() }));
   let voteDrafts = {}; // itemId -> current text in that vote-card's "add candidate" input
+  let candidateEditState = [0, 1, 2, 3].map(() => null); // per-day: {id, name, mapUrl} while editing a candidate, else null
   let pendingDelete = null;
 
   const navEl = document.getElementById("daynav");
@@ -132,32 +133,37 @@ const TRIP_START = "2026-07-29";
     const toggleChip = `<button type="button" class="chip${voteMode ? " selected" : ""}" style="${voteMode ? "background:#7a3fb0;" : ""}" data-action="toggle-vote-mode" data-day="${di}">${voteIcon(voteMode ? "#fff" : "#7a3fb0", voteMode ? "#7a3fb0" : "#fff")} 여러 후보로 투표받기</button>`;
     const label = fs.editId ? "저장" : (voteMode ? "투표 카드 만들기" : "추가");
 
-    let extra;
+    const timeInput = `<input type="text" inputmode="numeric" pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$" maxlength="5" placeholder="시간 입력 예: 14:30" value="${esc(d.time)}" data-role="f-time" aria-label="시간 (24시간제)">`;
+
+    let bodyHtml;
     if (voteMode) {
       const names = d.candidateNames || [];
       const nameChips = names.map((n, idx) => `<span class="chip" style="cursor:default;">${esc(n)}<button type="button" data-action="remove-draft-candidate" data-day="${di}" data-idx="${idx}" style="border:none;background:none;color:inherit;font-weight:900;margin-left:2px;cursor:pointer;">×</button></span>`).join("");
-      extra = `<input type="text" placeholder="투표 제목 (예: 점심 뭐 먹지?)" maxlength="40" value="${esc(d.name)}" data-role="f-name">
+      bodyHtml = `<div class="form-grid">${timeInput}</div>
+        <input type="text" placeholder="투표 제목 (예: 점심 뭐 먹지?)" maxlength="40" value="${esc(d.name)}" data-role="f-name">
+        <div class="form-divider"></div>
         ${names.length ? `<div class="chip-row">${nameChips}</div>` : ""}
         <div class="form-grid">
           <input type="text" placeholder="후보 장소 이름 입력 후 추가" maxlength="40" data-role="f-candidate">
           <button type="button" class="btn-cancel" style="flex:0 0 auto;" data-action="add-draft-candidate" data-day="${di}">추가</button>
         </div>`;
     } else {
-      extra = `<div class="form-grid">
+      bodyHtml = `<div class="form-grid">
           <input type="text" placeholder="장소 이름" maxlength="40" value="${esc(d.name)}" data-role="f-name">
         </div>
-        <input type="text" placeholder="메모 (예: 서귀포 · 실내)" maxlength="60" value="${esc(d.meta)}" data-role="f-meta">
-        <input type="text" placeholder="네이버지도 링크 (선택, 비워두면 이름으로 자동 검색)" value="${esc(d.mapUrl)}" data-role="f-maplink">
-        <input type="text" inputmode="numeric" placeholder="다음 장소까지 거리 (m, 선택 · 예: 357)" maxlength="6" value="${esc(d.distance)}" data-role="f-distance">`;
+        <input type="text" placeholder="메모 · 예: 서귀포, 실내" maxlength="60" value="${esc(d.meta)}" data-role="f-meta">
+        <input type="text" placeholder="네이버지도 링크 (선택) · 비워두면 이름으로 자동 검색" value="${esc(d.mapUrl)}" data-role="f-maplink">
+        <div class="form-divider"></div>
+        <div class="form-grid">
+          ${timeInput}
+          <input type="text" inputmode="numeric" placeholder="다음 장소까지 거리(m) · 예: 357" maxlength="6" value="${esc(d.distance)}" data-role="f-distance">
+        </div>`;
     }
 
     return `<div class="add-form" data-day="${di}">
       <div class="chip-row">${catChips}</div>
       <div class="chip-row">${toggleChip}</div>
-      <div class="form-grid">
-        <input type="text" inputmode="numeric" pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$" maxlength="5" placeholder="14:30" value="${esc(d.time)}" data-role="f-time" aria-label="시간 (24시간제, 예: 14:30)">
-      </div>
-      ${extra}
+      ${bodyHtml}
       <div class="form-actions">
         <button type="button" class="btn-cancel" data-action="cancel-form" data-day="${di}">취소</button>
         <button type="button" class="btn-primary" data-action="submit-stop" data-day="${di}">${label}</button>
@@ -165,11 +171,23 @@ const TRIP_START = "2026-07-29";
     </div>`;
   }
 
-  function voteCardHtml(di, item) {
+  function voteCardHtml(di, item, editing) {
     const cat = CATEGORIES[item.category] || CATEGORIES.etc;
     const timeHtml = item.time ? `<span class="hm">${item.time}</span>` : `<span class="dash">·</span>`;
     const cands = candidatesForItem(item.id);
     const rows = cands.map((c) => {
+      if (editing && editing.id === c.id) {
+        return `<li class="poll-item poll-item-edit" data-kind="candidate" data-day="${di}" data-id="${c.id}">
+          <div class="poll-edit-fields">
+            <input type="text" placeholder="후보 이름" maxlength="40" value="${esc(editing.name)}" data-role="f-cand-name">
+            <input type="text" placeholder="네이버지도 공유 링크 (선택, 비워두면 이름으로 검색)" value="${esc(editing.mapUrl)}" data-role="f-cand-link">
+          </div>
+          <div class="poll-edit-actions">
+            <button type="button" class="btn-cancel" data-action="cancel-candidate-edit" data-day="${di}">취소</button>
+            <button type="button" class="btn-primary" data-action="save-candidate-edit" data-day="${di}" data-id="${c.id}">저장</button>
+          </div>
+        </li>`;
+      }
       const vs = votesForCandidate(c.id);
       const votedByMe = vs.some((v) => v.voter_id === VOTER_ID);
       const mapHref = c.map_url && c.map_url.trim() ? esc(normalizeUrl(c.map_url)) : `https://map.naver.com/p/search/${encodeURIComponent(c.name)}`;
@@ -177,6 +195,7 @@ const TRIP_START = "2026-07-29";
         <span class="poll-name">${esc(c.name)}</span>
         <a class="maplink-icon small" target="_blank" rel="noopener" href="${mapHref}" aria-label="네이버지도">${mapIcon}</a>
         <button type="button" class="poll-vote-btn" data-action="toggle-vote" data-id="${c.id}">${heartIcon}<span>${vs.length}</span></button>
+        <button type="button" class="icon-btn" data-action="edit-candidate" data-day="${di}" data-id="${c.id}" aria-label="수정">${pencilIcon}</button>
       </li>`;
     }).join("");
     const draftVal = voteDrafts[item.id] || "";
@@ -210,13 +229,13 @@ const TRIP_START = "2026-07-29";
       const pieces = [];
       dayItems.forEach((item, idx) => {
         if (showAddForm && fs.insertAt === idx) {
-          pieces.push(stopFormHtml(di, fs));
+          pieces.push('<div class="reveal">' + stopFormHtml(di, fs) + '</div>');
         }
 
         if (fs.editId === item.id && (item.kind === "stop" || item.kind === "vote")) {
-          pieces.push(stopFormHtml(di, fs));
+          pieces.push('<div class="reveal">' + stopFormHtml(di, fs) + '</div>');
         } else if (item.kind === "vote") {
-          pieces.push(voteCardHtml(di, item));
+          pieces.push(voteCardHtml(di, item, candidateEditState[di]));
         } else if (item.kind === "transit") {
           // Rows from an earlier version of the app. Nothing creates these any
           // more (travel is now the automatic distance connector below), but
@@ -262,7 +281,7 @@ const TRIP_START = "2026-07-29";
       });
 
       if (showAddForm && fs.insertAt === n) {
-        pieces.push(stopFormHtml(di, fs));
+        pieces.push('<div class="reveal">' + stopFormHtml(di, fs) + '</div>');
       }
 
       const emptyHtml = (n === 0 && !showAddForm) ? `<div class="empty-card"><p>아직 일정이 없어요</p><span>+ 버튼으로 장소를 추가해보세요</span></div>` : "";
@@ -281,6 +300,10 @@ const TRIP_START = "2026-07-29";
         </div>
       </section>`;
     }).join("");
+
+    const openReveals = () => daysEl.querySelectorAll(".reveal").forEach((el) => el.classList.add("open"));
+    requestAnimationFrame(() => requestAnimationFrame(openReveals));
+    setTimeout(openReveals, 80); // safety net if rAF is throttled (e.g. a backgrounded tab)
   }
 
   function renderOverlay() {
@@ -361,6 +384,10 @@ const TRIP_START = "2026-07-29";
   }
   async function deleteCandidate(id) {
     const { error } = await supabase.from("candidates").delete().eq("id", id);
+    if (error) console.error(error);
+  }
+  async function updateCandidate(id, fields) {
+    const { error } = await supabase.from("candidates").update(fields).eq("id", id);
     if (error) console.error(error);
   }
   async function toggleVote(candidateId) {
@@ -511,6 +538,23 @@ const TRIP_START = "2026-07-29";
       delete voteDrafts[itemId];
     }
     else if (action === "toggle-vote") { toggleVote(btn.dataset.id); }
+    else if (action === "edit-candidate") {
+      const c = candidates.find((x) => x.id === btn.dataset.id);
+      if (!c) return;
+      candidateEditState[di] = { id: c.id, name: c.name || "", mapUrl: c.map_url || "" };
+      render();
+    }
+    else if (action === "cancel-candidate-edit") { candidateEditState[di] = null; render(); }
+    else if (action === "save-candidate-edit") {
+      const li = btn.closest(".poll-item-edit");
+      const nameEl = li.querySelector('[data-role="f-cand-name"]');
+      const name = nameEl.value.trim();
+      if (!name) { nameEl.focus(); return; }
+      const mapUrl = normalizeUrl(li.querySelector('[data-role="f-cand-link"]').value);
+      updateCandidate(btn.dataset.id, { name, map_url: mapUrl });
+      candidateEditState[di] = null;
+      render();
+    }
   });
 
   overlayEl.addEventListener("click", (e) => {
