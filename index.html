@@ -4,6 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>제주 여행 · 2026.7.29 - 8.1</title>
+<script>
+  // Inline and first, so it still catches failures in app.js itself (including
+  // app.js failing to parse or load at all). Without this, any uncaught error
+  // leaves only the static header on screen with no explanation.
+  window.addEventListener("error", function (e) {
+    // Resource-load failures (a font, say) have no message and shouldn't take
+    // over the screen — only script errors should.
+    if (!e || !e.message) return;
+    var box = document.getElementById("fatalError");
+    if (box) box.hidden = false;
+  });
+  window.addEventListener("DOMContentLoaded", function () {
+    var btn = document.getElementById("fatalReload");
+    if (btn) btn.addEventListener("click", function () {
+      // Bypass the cached copies that most likely caused the mismatch.
+      location.replace(location.pathname + "?r=" + Date.now());
+    });
+  });
+</script>
 <style>
   @font-face {
     font-family: 'Wanted Sans';
@@ -352,6 +371,22 @@
   }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+  /* Shown by the global error handler. A single uncaught error used to leave
+     nothing but the static header on screen, with no clue what to do. */
+  #fatalError {
+    position: fixed; inset: 0; z-index: 80; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 32px 28px; gap: 4px;
+  }
+  #fatalError[hidden] { display: none; }
+  .fatal-title { font-size: 17px; font-weight: 800; margin: 0 0 8px; color: var(--text); }
+  .fatal-desc { font-size: 13.5px; line-height: 1.7; color: var(--text-secondary); margin: 0 0 20px; }
+  #fatalReload {
+    border: none; background: var(--accent); color: #fff; font-family: inherit;
+    font-size: 14px; font-weight: 700; padding: 12px 24px; border-radius: 12px; cursor: pointer;
+  }
+  .fatal-note { font-size: 12px; color: var(--text-faint); margin: 18px 0 0; }
+
   .config-warning { margin: 40px 20px; padding: 18px; background: #fff4ea; border: 1px solid #f3d9b8; border-radius: 16px; font-size: 13px; line-height: 1.7; color: #6b4a1c; }
   .config-warning code { background: #fff; padding: 1px 5px; border-radius: 5px; }
 
@@ -388,8 +423,17 @@
   <div id="overlayRoot"></div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
+<div id="fatalError" hidden>
+  <p class="fatal-title">화면을 불러오지 못했어요</p>
+  <p class="fatal-desc">앱이 업데이트되어 예전 화면이 남아있을 수 있어요.<br>아래 버튼을 누르면 최신 버전으로 다시 불러옵니다.</p>
+  <button type="button" id="fatalReload">다시 불러오기</button>
+  <p class="fatal-note">일정 데이터는 서버에 그대로 저장되어 있어요.</p>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="app.js"></script>
+<!-- The ?v= must be bumped on every app.js change. GitHub Pages caches HTML and
+     JS separately (~10 min each), so without it a browser can pair new HTML
+     with a stale app.js — a mismatch that throws and leaves a blank page. -->
+<script src="app.js?v=3"></script>
 </body>
 </html>
