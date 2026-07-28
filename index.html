@@ -297,6 +297,40 @@
   .overlay-desc { font-size: 13px; color: var(--text-secondary); margin: 0 0 18px; }
   .overlay-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
+  /* Discoverability for the swipe pager: always-there edge arrows, plus a
+     one-time hint on the first visit. */
+  .pager-arrow {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 30px; height: 30px; border-radius: 50%; border: none;
+    background: rgba(255, 255, 255, 0.9); color: var(--accent-ink);
+    font-size: 19px; font-weight: 800; line-height: 1; padding: 0 0 2px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow); cursor: pointer; z-index: 15; font-family: inherit;
+  }
+  .pager-arrow.prev { left: 5px; }
+  .pager-arrow.next { right: 5px; }
+  .pager-arrow[hidden] { display: none; }
+
+  .swipe-hint {
+    position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 8px; white-space: nowrap;
+    background: rgba(23, 41, 68, 0.9); color: #fff; z-index: 30;
+    font-size: 12.5px; font-weight: 700; padding: 9px 14px; border-radius: 999px;
+    box-shadow: 0 6px 20px rgba(15, 35, 60, 0.25);
+    transition: opacity 0.3s ease;
+  }
+  .swipe-hint[hidden] { display: none; }
+  .swipe-hint.fade { opacity: 0; }
+  .swipe-hint .swipe-arrow { display: inline-block; animation: swipeNudge 1.4s ease-in-out infinite; }
+  .swipe-hint .swipe-arrow:last-child { animation-delay: 0.7s; }
+  @keyframes swipeNudge {
+    0%, 100% { transform: translateX(0); opacity: 0.55; }
+    50% { transform: translateX(-3px); opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .swipe-hint .swipe-arrow { animation: none; opacity: 1; }
+  }
+
   #toast {
     position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(12px);
     max-width: 340px; width: calc(100% - 40px); z-index: 60;
@@ -334,6 +368,13 @@
   <div id="headerSpacer" aria-hidden="true"></div>
 
   <main id="days"></main>
+  <button type="button" id="pagerPrev" class="pager-arrow prev" aria-label="이전 날짜" hidden>‹</button>
+  <button type="button" id="pagerNext" class="pager-arrow next" aria-label="다음 날짜" hidden>›</button>
+  <div id="swipeHint" class="swipe-hint" hidden>
+    <span class="swipe-arrow">←</span>
+    옆으로 넘기면 다른 날짜를 볼 수 있어요
+    <span class="swipe-arrow">→</span>
+  </div>
   <div id="overlayRoot"></div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>

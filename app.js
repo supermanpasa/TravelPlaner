@@ -137,6 +137,26 @@ const TRIP_START = "2026-07-29";
   });
 
   // ------------------------------------------------------------ day pager --
+  const prevArrow = document.getElementById("pagerPrev");
+  const nextArrow = document.getElementById("pagerNext");
+  const swipeHintEl = document.getElementById("swipeHint");
+  const HINT_KEY = "jeju-swipe-hint-seen";
+
+  // Shown once, so someone opening the link for the first time knows the days
+  // continue sideways.
+  function maybeShowSwipeHint() {
+    if (days.length < 2) return;
+    try { if (localStorage.getItem(HINT_KEY)) return; } catch (e) { return; }
+    swipeHintEl.hidden = false;
+    setTimeout(dismissSwipeHint, 6000);
+  }
+  function dismissSwipeHint() {
+    if (swipeHintEl.hidden) return;
+    swipeHintEl.classList.add("fade");
+    setTimeout(() => { swipeHintEl.hidden = true; }, 320);
+    try { localStorage.setItem(HINT_KEY, "1"); } catch (e) { /* private mode */ }
+  }
+
   let activeDay = 0;
   function goToDay(idx, smooth) {
     const max = Math.max(0, days.length - 1);
@@ -150,22 +170,27 @@ const TRIP_START = "2026-07-29";
   }
   function markActiveDay() {
     navEl.querySelectorAll("button").forEach((b, i) => b.classList.toggle("active", i === activeDay));
+    prevArrow.hidden = activeDay <= 0;
+    nextArrow.hidden = activeDay >= days.length - 1;
   }
   daysEl.addEventListener("scroll", () => {
     if (!daysEl.clientWidth) return;
     const idx = Math.round(daysEl.scrollLeft / daysEl.clientWidth);
-    if (idx !== activeDay) { activeDay = idx; markActiveDay(); }
+    if (idx !== activeDay) { activeDay = idx; markActiveDay(); dismissSwipeHint(); }
   }, { passive: true });
   navEl.addEventListener("click", (e) => {
     const b = e.target.closest("button[data-idx]");
-    if (b) goToDay(Number(b.dataset.idx), true);
+    if (b) { goToDay(Number(b.dataset.idx), true); dismissSwipeHint(); }
   });
+  prevArrow.addEventListener("click", () => { goToDay(activeDay - 1, true); dismissSwipeHint(); });
+  nextArrow.addEventListener("click", () => { goToDay(activeDay + 1, true); dismissSwipeHint(); });
 
   // Once the trip is underway, open on today's day instead of day 1.
   let jumpedToToday = false;
   function jumpToToday() {
     if (jumpedToToday || !days.length) return;
     jumpedToToday = true;
+    maybeShowSwipeHint();
     const start = new Date(TRIP_START + "T00:00:00");
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const idx = Math.round((today - start) / 86400000);
@@ -383,6 +408,7 @@ const TRIP_START = "2026-07-29";
     // Rebuilding the markup resets scrollLeft, which would snap the pager back
     // to day 1 on every refetch — put it back on the day the user was viewing.
     if (daysEl.clientWidth) daysEl.scrollLeft = activeDay * daysEl.clientWidth;
+    markActiveDay();
 
     const openReveals = () => daysEl.querySelectorAll(".reveal").forEach((el) => el.classList.add("open"));
     requestAnimationFrame(() => requestAnimationFrame(openReveals));
