@@ -177,7 +177,11 @@
     scroll-snap-align: start; scroll-snap-stop: always;
     overflow-y: auto; overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    padding: 4px 16px 40px;
+    /* The spacer only reserves the header's *collapsed* height, so this padding
+       makes up the difference and the first card still starts below the fully
+       expanded header. The header then shrinks over the scrolling content
+       instead of resizing the layout and shoving everything down. */
+    padding: calc(4px + var(--day-pad-top, 0px)) 16px 40px;
     scrollbar-width: none;
   }
   section.day::-webkit-scrollbar { display: none; }
@@ -434,6 +438,6 @@
 <!-- The ?v= must be bumped on every app.js change. GitHub Pages caches HTML and
      JS separately (~10 min each), so without it a browser can pair new HTML
      with a stale app.js — a mismatch that throws and leaves a blank page. -->
-<script src="app.js?v=3"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

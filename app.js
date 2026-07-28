@@ -116,15 +116,34 @@ const TRIP_START = "2026-07-29";
   const headerEl = document.querySelector("header.trip");
   document.getElementById("ddayBadge").textContent = dDayLabel(TRIP_START);
 
-  // The header is fixed, so a spacer of its height stands in for it in the flow
-  // and the pager below fills whatever viewport is left.
+  // The header is fixed, so a spacer stands in for it in the flow. It reserves
+  // only the COLLAPSED height and never changes — each day column pads itself by
+  // the difference (--day-pad-top) instead. If the spacer tracked the live
+  // header height, expanding the header would grow it and shove the whole
+  // column down mid-scroll.
   const spacerEl = document.getElementById("headerSpacer");
-  function sizeHeaderSpacer() { spacerEl.style.height = headerEl.offsetHeight + "px"; }
-  // The header grows once the web font loads and again when the day pills are
-  // rendered. If the spacer lags behind, the fixed header covers the top of the
-  // day column and it looks cut off with no way to scroll up to it.
-  if (window.ResizeObserver) new ResizeObserver(sizeHeaderSpacer).observe(headerEl);
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeHeaderSpacer);
+  let shrinkRange = 1; // px of scroll from fully expanded to collapsed
+  function measureHeader() {
+    // No transitions on the --shrink-driven properties, so both extremes can be
+    // measured synchronously within one frame without any visible flicker.
+    const prev = headerEl.style.getPropertyValue("--shrink");
+    headerEl.style.setProperty("--shrink", "0");
+    const expanded = headerEl.offsetHeight;
+    headerEl.style.setProperty("--shrink", "1");
+    const collapsed = headerEl.offsetHeight;
+    if (prev === "") headerEl.style.removeProperty("--shrink");
+    else headerEl.style.setProperty("--shrink", prev);
+
+    shrinkRange = Math.max(1, expanded - collapsed);
+    spacerEl.style.height = collapsed + "px";
+    // Scrolling exactly `shrinkRange` collapses the header by the same amount
+    // the content rises, so the header's bottom edge tracks the first card
+    // instead of overtaking or lagging behind it.
+    document.documentElement.style.setProperty("--day-pad-top", shrinkRange + "px");
+  }
+  // The header's height changes when the web font loads and when the day pills
+  // are rendered, so re-measure on both (never on the shrink itself).
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(measureHeader);
 
   // Shrinks the header 1:1 with the visible day's scroll position (see the
   // --shrink comment in index.html for why it isn't a CSS-transitioned class
@@ -132,7 +151,6 @@ const TRIP_START = "2026-07-29";
   // render(), so this listens in the capture phase on a stable ancestor
   // instead of re-binding per section — scroll doesn't bubble, but it's still
   // observable while capturing down to its target.
-  const SHRINK_RANGE = 40; // px of scroll to go from fully expanded to compact
   let shrinkQueued = false;
   function syncHeaderShrink(e) {
     if (!e.target.classList || !e.target.classList.contains("day")) return;
@@ -141,8 +159,7 @@ const TRIP_START = "2026-07-29";
     const scrollTop = e.target.scrollTop;
     requestAnimationFrame(() => {
       shrinkQueued = false;
-      const t = Math.max(0, Math.min(1, scrollTop / SHRINK_RANGE));
-      headerEl.style.setProperty("--shrink", t);
+      headerEl.style.setProperty("--shrink", Math.max(0, Math.min(1, scrollTop / shrinkRange)));
     });
   }
   daysEl.addEventListener("scroll", syncHeaderShrink, { passive: true, capture: true });
@@ -153,7 +170,7 @@ const TRIP_START = "2026-07-29";
   window.addEventListener("resize", () => {
     if (window.innerWidth === lastWidth) return;
     lastWidth = window.innerWidth;
-    sizeHeaderSpacer();
+    measureHeader();
     goToDay(activeDay, false); // keep the current page aligned after a resize
   });
 
@@ -193,7 +210,7 @@ const TRIP_START = "2026-07-29";
     // --shrink would otherwise keep whatever value the previous day left it
     // at instead of matching the new day's own scroll position.
     const el = document.getElementById(`day-${activeDay + 1}`);
-    const t = el ? Math.max(0, Math.min(1, el.scrollTop / SHRINK_RANGE)) : 0;
+    const t = el ? Math.max(0, Math.min(1, el.scrollTop / shrinkRange)) : 0;
     headerEl.style.setProperty("--shrink", t);
   }
   daysEl.addEventListener("scroll", () => {
@@ -425,7 +442,7 @@ const TRIP_START = "2026-07-29";
       </section>`;
     }).join("");
 
-    sizeHeaderSpacer();
+    measureHeader(); // the day pills just changed the header's height
     // Rebuilding the markup resets scrollLeft, which would snap the pager back
     // to day 1 on every refetch — put it back on the day the user was viewing.
     if (daysEl.clientWidth) daysEl.scrollLeft = activeDay * daysEl.clientWidth;
