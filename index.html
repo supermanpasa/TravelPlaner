@@ -78,27 +78,36 @@
   #headerSpacer { flex: 0 0 auto; }
 
   /* Fixed header carrying its own slice of the sky gradient, plus a spacer of
-     the same height in the flow. It never moves or resizes — the day pager
-     below it does all the scrolling. */
+     the same height in the flow. It never moves — but it does shrink as the
+     active day is scrolled.
+
+     --shrink (0..1) is set directly from that day's scrollTop on every scroll
+     event, with no transition on the properties it drives. A touch drag fires
+     scroll continuously with no easing of its own, so a header that eases on
+     a separate timer visibly lags and crosses the finger's motion — tying the
+     header 1:1 to scrollTop instead keeps it perfectly in step, the same way
+     a native collapsing toolbar behaves. Only the box-shadow (a cosmetic
+     on/off, not part of the size change) keeps a short transition. */
   header.trip {
     position: fixed; top: 0; left: 0; right: 0;
     z-index: 20;
-    /* Same gradient as the backdrop, sized to the same 340px and pinned to the
-       top, so the header's slice continues into the backdrop with no seam. */
     background: var(--sky);
     background-size: 100% var(--sky-h);
     background-repeat: no-repeat;
-    transition: box-shadow 0.22s ease;
+    box-shadow: 0 2px 14px rgba(15, 35, 60, calc(0.1 * var(--shrink, 0)));
   }
-  .trip-inner { max-width: 460px; margin: 0 auto; padding: 18px 20px 10px; transition: padding 0.22s ease; }
-  header.trip.compact .trip-inner { padding: 8px 20px 6px; }
+  .trip-inner {
+    max-width: 460px; margin: 0 auto;
+    padding: calc(18px - 10px * var(--shrink, 0)) 20px calc(10px - 4px * var(--shrink, 0));
+  }
 
   .eyebrow-row {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
-    overflow: hidden; max-height: 20px; opacity: 1;
-    transition: max-height 0.22s ease, opacity 0.16s ease, margin-bottom 0.22s ease;
+    display: flex; align-items: center; gap: 8px;
+    overflow: hidden;
+    max-height: calc(20px - 20px * var(--shrink, 0));
+    opacity: calc(1 - var(--shrink, 0));
+    margin-bottom: calc(6px - 6px * var(--shrink, 0));
   }
-  header.trip.compact .eyebrow-row { max-height: 0; opacity: 0; margin-bottom: 0; }
   .eyebrow { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: var(--accent-ink); letter-spacing: 0.03em; }
   .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 
@@ -109,17 +118,16 @@
   .sync-dot.live { background: #1fbf6a; }
   .sync-dot.err { background: var(--danger); }
 
-  h1.title { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -0.01em; color: var(--text); transition: font-size 0.22s ease; }
-  header.trip.compact h1.title { font-size: 17px; }
-  .dates {
-    font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; margin: 3px 0 0;
-    overflow: hidden; max-height: 20px; opacity: 1;
-    transition: max-height 0.22s ease, opacity 0.16s ease, margin-top 0.22s ease;
+  h1.title {
+    font-size: calc(22px - 5px * var(--shrink, 0)); font-weight: 800; margin: 0;
+    letter-spacing: -0.01em; color: var(--text);
   }
-  header.trip.compact .dates { max-height: 0; opacity: 0; margin-top: 0; }
-
-  @media (prefers-reduced-motion: reduce) {
-    header.trip, .trip-inner, .eyebrow-row, .dates, h1.title { transition: none; }
+  .dates {
+    font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+    margin-top: calc(3px - 3px * var(--shrink, 0));
+    overflow: hidden;
+    max-height: calc(20px - 20px * var(--shrink, 0));
+    opacity: calc(1 - var(--shrink, 0));
   }
 
   /* Day pills double as the pager control for the swipe carousel. */

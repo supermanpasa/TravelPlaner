@@ -126,16 +126,26 @@ const TRIP_START = "2026-07-29";
   if (window.ResizeObserver) new ResizeObserver(sizeHeaderSpacer).observe(headerEl);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeHeaderSpacer);
 
-  // Shrink the header once the visible day is scrolled. Each section.day
-  // scrolls independently (the page itself doesn't), and section.day elements
-  // are replaced on every render(), so this listens in the capture phase on a
-  // stable ancestor instead of re-binding per section — scroll doesn't bubble,
-  // but it is still observable while capturing down to its target.
-  function syncHeaderCompact(e) {
+  // Shrinks the header 1:1 with the visible day's scroll position (see the
+  // --shrink comment in index.html for why it isn't a CSS-transitioned class
+  // toggle). Each section.day scrolls independently and is replaced on every
+  // render(), so this listens in the capture phase on a stable ancestor
+  // instead of re-binding per section — scroll doesn't bubble, but it's still
+  // observable while capturing down to its target.
+  const SHRINK_RANGE = 40; // px of scroll to go from fully expanded to compact
+  let shrinkQueued = false;
+  function syncHeaderShrink(e) {
     if (!e.target.classList || !e.target.classList.contains("day")) return;
-    headerEl.classList.toggle("compact", e.target.scrollTop > 16);
+    if (shrinkQueued) return;
+    shrinkQueued = true;
+    const scrollTop = e.target.scrollTop;
+    requestAnimationFrame(() => {
+      shrinkQueued = false;
+      const t = Math.max(0, Math.min(1, scrollTop / SHRINK_RANGE));
+      headerEl.style.setProperty("--shrink", t);
+    });
   }
-  daysEl.addEventListener("scroll", syncHeaderCompact, { passive: true, capture: true });
+  daysEl.addEventListener("scroll", syncHeaderShrink, { passive: true, capture: true });
   // Only re-measure when the width actually changes: iOS fires resize as its
   // address bar collapses, and re-measuring on every one of those is what made
   // the layout jump.
@@ -183,6 +193,12 @@ const TRIP_START = "2026-07-29";
     navEl.querySelectorAll("button").forEach((b, i) => b.classList.toggle("active", i === activeDay));
     prevArrow.hidden = activeDay <= 0;
     nextArrow.hidden = activeDay >= days.length - 1;
+    // Swiping to another day doesn't fire a vertical scroll event on it, so
+    // --shrink would otherwise keep whatever value the previous day left it
+    // at instead of matching the new day's own scroll position.
+    const el = document.getElementById(`day-${activeDay + 1}`);
+    const t = el ? Math.max(0, Math.min(1, el.scrollTop / SHRINK_RANGE)) : 0;
+    headerEl.style.setProperty("--shrink", t);
   }
   daysEl.addEventListener("scroll", () => {
     if (!daysEl.clientWidth) return;
