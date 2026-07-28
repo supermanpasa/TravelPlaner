@@ -323,18 +323,6 @@
 
   /* Discoverability for the swipe pager: always-there edge arrows, plus a
      one-time hint on the first visit. */
-  .pager-arrow {
-    position: absolute; top: 50%; transform: translateY(-50%);
-    width: 30px; height: 30px; border-radius: 50%; border: none;
-    background: rgba(255, 255, 255, 0.9); color: var(--accent-ink);
-    font-size: 19px; font-weight: 800; line-height: 1; padding: 0 0 2px;
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: var(--shadow); cursor: pointer; z-index: 15; font-family: inherit;
-  }
-  .pager-arrow.prev { left: 5px; }
-  .pager-arrow.next { right: 5px; }
-  .pager-arrow[hidden] { display: none; }
-
   .swipe-hint {
     position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
     display: flex; align-items: center; gap: 8px; white-space: nowrap;
@@ -392,8 +380,6 @@
   <div id="headerSpacer" aria-hidden="true"></div>
 
   <main id="days"></main>
-  <button type="button" id="pagerPrev" class="pager-arrow prev" aria-label="이전 날짜" hidden>‹</button>
-  <button type="button" id="pagerNext" class="pager-arrow next" aria-label="다음 날짜" hidden>›</button>
   <div id="swipeHint" class="swipe-hint" hidden>
     <span class="swipe-arrow">←</span>
     옆으로 넘기면 다른 날짜를 볼 수 있어요

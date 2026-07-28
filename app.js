@@ -158,8 +158,6 @@ const TRIP_START = "2026-07-29";
   });
 
   // ------------------------------------------------------------ day pager --
-  const prevArrow = document.getElementById("pagerPrev");
-  const nextArrow = document.getElementById("pagerNext");
   const swipeHintEl = document.getElementById("swipeHint");
   const HINT_KEY = "jeju-swipe-hint-seen";
 
@@ -191,8 +189,6 @@ const TRIP_START = "2026-07-29";
   }
   function markActiveDay() {
     navEl.querySelectorAll("button").forEach((b, i) => b.classList.toggle("active", i === activeDay));
-    prevArrow.hidden = activeDay <= 0;
-    nextArrow.hidden = activeDay >= days.length - 1;
     // Swiping to another day doesn't fire a vertical scroll event on it, so
     // --shrink would otherwise keep whatever value the previous day left it
     // at instead of matching the new day's own scroll position.
@@ -209,8 +205,6 @@ const TRIP_START = "2026-07-29";
     const b = e.target.closest("button[data-idx]");
     if (b) { goToDay(Number(b.dataset.idx), true); dismissSwipeHint(); }
   });
-  prevArrow.addEventListener("click", () => { goToDay(activeDay - 1, true); dismissSwipeHint(); });
-  nextArrow.addEventListener("click", () => { goToDay(activeDay + 1, true); dismissSwipeHint(); });
 
   // Once the trip is underway, open on today's day instead of day 1.
   let jumpedToToday = false;
