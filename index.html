@@ -73,6 +73,9 @@
     background: var(--sky); pointer-events: none; z-index: 0;
   }
   main, #overlayRoot { position: relative; z-index: 1; }
+  /* Must not shrink: it reserves the fixed header's height, and if the flex
+     layout squashes it the header covers the top of the day column. */
+  #headerSpacer { flex: 0 0 auto; }
 
   /* Fixed header carrying its own slice of the sky gradient, plus a spacer of
      the same height in the flow. It never moves or resizes — the day pager

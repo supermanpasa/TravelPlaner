@@ -120,6 +120,11 @@ const TRIP_START = "2026-07-29";
   // and the pager below fills whatever viewport is left.
   const spacerEl = document.getElementById("headerSpacer");
   function sizeHeaderSpacer() { spacerEl.style.height = headerEl.offsetHeight + "px"; }
+  // The header grows once the web font loads and again when the day pills are
+  // rendered. If the spacer lags behind, the fixed header covers the top of the
+  // day column and it looks cut off with no way to scroll up to it.
+  if (window.ResizeObserver) new ResizeObserver(sizeHeaderSpacer).observe(headerEl);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeHeaderSpacer);
   // Only re-measure when the width actually changes: iOS fires resize as its
   // address bar collapses, and re-measuring on every one of those is what made
   // the layout jump.
