@@ -116,54 +116,56 @@ const TRIP_START = "2026-07-29";
   const headerEl = document.querySelector("header.trip");
   document.getElementById("ddayBadge").textContent = dDayLabel(TRIP_START);
 
-  // The header is fixed, so a spacer of its expanded height stands in for it in
-  // the flow. Keeping that height constant means shrinking the header on scroll
-  // never shifts the content underneath.
+  // The header is fixed, so a spacer of its height stands in for it in the flow
+  // and the pager below fills whatever viewport is left.
   const spacerEl = document.getElementById("headerSpacer");
-  const headerInner = headerEl.querySelector(".trip-inner");
-  function sizeHeaderSpacer() {
-    const wasCompact = headerEl.classList.contains("compact");
-    headerEl.style.transition = "none";
-    headerInner.style.transition = "none";
-    headerEl.classList.remove("compact");
-    const expanded = headerEl.offsetHeight;
-    if (wasCompact) headerEl.classList.add("compact");
-    headerEl.offsetHeight; // flush before restoring the transitions
-    headerEl.style.transition = "";
-    headerInner.style.transition = "";
-    spacerEl.style.height = expanded + "px";
-  }
-
-  // Shrink the header to a compact bar once the page is scrolled.
-  function syncHeader() {
-    headerEl.classList.toggle("compact", (window.scrollY || document.documentElement.scrollTop) > 24);
-  }
-  window.addEventListener("scroll", syncHeader, { passive: true });
-  // Only re-measure when the width actually changes. iOS fires resize as its
-  // address bar collapses during a scroll, and re-measuring there briefly
-  // expands the header — which is the "툭 튀는" jump on the first scroll.
+  function sizeHeaderSpacer() { spacerEl.style.height = headerEl.offsetHeight + "px"; }
+  // Only re-measure when the width actually changes: iOS fires resize as its
+  // address bar collapses, and re-measuring on every one of those is what made
+  // the layout jump.
   let lastWidth = window.innerWidth;
   window.addEventListener("resize", () => {
     if (window.innerWidth === lastWidth) return;
     lastWidth = window.innerWidth;
     sizeHeaderSpacer();
+    goToDay(activeDay, false); // keep the current page aligned after a resize
   });
-  sizeHeaderSpacer();
-  syncHeader();
 
-  // Once the trip is underway, open the page on today's day instead of day 1.
+  // ------------------------------------------------------------ day pager --
+  let activeDay = 0;
+  function goToDay(idx, smooth) {
+    const max = Math.max(0, days.length - 1);
+    activeDay = Math.min(Math.max(idx, 0), max);
+    const apply = () => daysEl.scrollTo({ left: activeDay * daysEl.clientWidth, behavior: smooth ? "smooth" : "auto" });
+    apply();
+    // On first paint the layout can still be settling, and the snap container
+    // then pulls the jump back to day 1 — re-apply once it has settled.
+    if (!smooth) requestAnimationFrame(() => { apply(); markActiveDay(); });
+    markActiveDay();
+  }
+  function markActiveDay() {
+    navEl.querySelectorAll("button").forEach((b, i) => b.classList.toggle("active", i === activeDay));
+  }
+  daysEl.addEventListener("scroll", () => {
+    if (!daysEl.clientWidth) return;
+    const idx = Math.round(daysEl.scrollLeft / daysEl.clientWidth);
+    if (idx !== activeDay) { activeDay = idx; markActiveDay(); }
+  }, { passive: true });
+  navEl.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-idx]");
+    if (b) goToDay(Number(b.dataset.idx), true);
+  });
+
+  // Once the trip is underway, open on today's day instead of day 1.
   let jumpedToToday = false;
   function jumpToToday() {
     if (jumpedToToday || !days.length) return;
+    jumpedToToday = true;
     const start = new Date(TRIP_START + "T00:00:00");
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const idx = Math.round((today - start) / 86400000);
-    jumpedToToday = true;
     if (idx <= 0 || idx >= days.length) return; // before the trip, or already over
-    const el = document.getElementById(`day-${idx + 1}`);
-    if (!el) return;
-    el.scrollIntoView({ block: "start" });
-    syncHeader(); // programmatic scrolls don't always fire a scroll event
+    goToDay(idx, false);
   }
 
   function setSync(state) { syncDot.className = "sync-dot" + (state === "live" ? " live" : state === "err" ? " err" : ""); }
@@ -286,7 +288,9 @@ const TRIP_START = "2026-07-29";
   }
 
   function render() {
-    navEl.innerHTML = days.map((d, i) => `<a href="#day-${i + 1}">day ${i + 1} · ${d.date_label}</a>`).join("");
+    navEl.innerHTML = days.map((d, i) =>
+      `<button type="button" data-idx="${i}"${i === activeDay ? ' class="active"' : ""}>day ${i + 1} · ${d.date_label}</button>`
+    ).join("");
 
     daysEl.innerHTML = days.map((day, di) => {
       const fs = formState[di];
@@ -366,8 +370,14 @@ const TRIP_START = "2026-07-29";
           ${pieces.join("")}
           ${emptyHtml}${actionsHtml}
         </div>
+        <p class="day-hint">초록 아이콘 = 네이버지도 · 연필 = 수정 · 카드를 길게 누르면 삭제</p>
       </section>`;
     }).join("");
+
+    sizeHeaderSpacer();
+    // Rebuilding the markup resets scrollLeft, which would snap the pager back
+    // to day 1 on every refetch — put it back on the day the user was viewing.
+    if (daysEl.clientWidth) daysEl.scrollLeft = activeDay * daysEl.clientWidth;
 
     const openReveals = () => daysEl.querySelectorAll(".reveal").forEach((el) => el.classList.add("open"));
     requestAnimationFrame(() => requestAnimationFrame(openReveals));

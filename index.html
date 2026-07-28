@@ -59,21 +59,24 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* svh keeps the height stable while iOS shows/hides its address bar. */
-  .screen { max-width: 460px; margin: 0 auto; min-height: 100vh; min-height: 100svh; padding-bottom: 48px; position: relative; }
+  /* One viewport tall, split into fixed header + the horizontal day pager.
+     svh keeps the height stable while iOS shows/hides its address bar. */
+  .screen {
+    max-width: 460px; margin: 0 auto; position: relative;
+    height: 100vh; height: 100svh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
   /* Fixed to the viewport, so the blue stays behind the content while the page
      scrolls instead of scrolling away and leaving a bare white background. */
   body::before {
     content: ""; position: fixed; top: 0; left: 0; right: 0; height: var(--sky-h);
     background: var(--sky); pointer-events: none; z-index: 0;
   }
-  nav.daynav, main, footer.note, #overlayRoot { position: relative; z-index: 1; }
+  main, #overlayRoot { position: relative; z-index: 1; }
 
-  /* Fixed (not sticky) header: it carries its own slice of the sky gradient so
-     the blue stays behind the title while scrolling, and shrinks to a compact
-     bar. It's fixed + a spacer of the expanded height so that shrinking it
-     never reflows the page underneath. Gradient stops are matched to the page
-     gradient at the header's bottom edge so the seam is invisible at the top. */
+  /* Fixed header carrying its own slice of the sky gradient, plus a spacer of
+     the same height in the flow. It never moves or resizes — the day pager
+     below it does all the scrolling. */
   header.trip {
     position: fixed; top: 0; left: 0; right: 0;
     z-index: 20;
@@ -84,11 +87,9 @@
     background-repeat: no-repeat;
     transition: box-shadow 0.22s ease;
   }
-  .trip-inner { max-width: 460px; margin: 0 auto; padding: 26px 20px 14px; transition: padding 0.22s ease; }
-  header.trip.compact .trip-inner { padding: 12px 20px; }
+  .trip-inner { max-width: 460px; margin: 0 auto; padding: 18px 20px 10px; }
 
-  .eyebrow-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; overflow: hidden; max-height: 20px; opacity: 1; transition: max-height 0.22s ease, opacity 0.16s ease, margin-bottom 0.22s ease; }
-  header.trip.compact .eyebrow-row { max-height: 0; opacity: 0; margin-bottom: 0; }
+  .eyebrow-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .eyebrow { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: var(--accent-ink); letter-spacing: 0.03em; }
   .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 
@@ -99,32 +100,41 @@
   .sync-dot.live { background: #1fbf6a; }
   .sync-dot.err { background: var(--danger); }
 
-  h1.title { font-size: 26px; font-weight: 800; margin: 0; letter-spacing: -0.01em; color: var(--text); transition: font-size 0.22s ease; }
-  header.trip.compact h1.title { font-size: 19px; }
-  .dates { font-size: 14px; color: var(--text-secondary); font-variant-numeric: tabular-nums; margin: 4px 0 0; overflow: hidden; max-height: 22px; opacity: 1; transition: max-height 0.22s ease, opacity 0.16s ease, margin-top 0.22s ease; }
-  header.trip.compact .dates { max-height: 0; opacity: 0; margin-top: 0; }
+  h1.title { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -0.01em; color: var(--text); }
+  .dates { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; margin: 3px 0 0; }
 
-  @media (prefers-reduced-motion: reduce) {
-    header.trip, .trip-inner, .eyebrow-row, .dates, h1.title { transition: none; }
-  }
-
-  nav.daynav { display: flex; gap: 8px; padding: 14px 20px 4px; overflow-x: auto; scrollbar-width: none; }
+  /* Day pills double as the pager control for the swipe carousel. */
+  nav.daynav { display: flex; gap: 6px; padding: 0 14px 10px; max-width: 460px; margin: 0 auto; overflow-x: auto; scrollbar-width: none; }
   nav.daynav::-webkit-scrollbar { display: none; }
-  nav.daynav a {
-    flex: 0 0 auto; text-decoration: none; color: var(--accent-ink); background: var(--surface);
-    border: 1px solid var(--line); padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 700;
-    white-space: nowrap; box-shadow: var(--shadow);
+  nav.daynav button {
+    flex: 1 1 0; min-width: 0; text-align: center; color: var(--accent-ink); background: var(--surface);
+    border: 1px solid var(--line); padding: 7px 6px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
+    white-space: nowrap; box-shadow: var(--shadow); cursor: pointer; font-family: inherit;
+    transition: background 0.18s ease, color 0.18s ease;
   }
+  nav.daynav button.active { background: var(--accent-ink); color: #fff; border-color: transparent; }
 
-  main { padding: 10px 16px 0; display: flex; flex-direction: column; gap: 18px; }
-  /* Each day is a tinted panel so its cards visibly belong together. */
-  section.day {
-    scroll-margin-top: 68px;
-    background: rgba(23, 63, 110, 0.05);
-    border: 1px solid rgba(23, 63, 110, 0.07);
-    border-radius: 26px;
-    padding: 14px 12px;
+  /* Horizontal pager: one day per screen, snapping as you swipe. */
+  main {
+    flex: 1 1 auto; min-height: 0;
+    display: flex; flex-direction: row; padding: 0;
+    overflow-x: auto; overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
+  main::-webkit-scrollbar { display: none; }
+
+  section.day {
+    flex: 0 0 100%; width: 100%;
+    scroll-snap-align: start; scroll-snap-stop: always;
+    overflow-y: auto; overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 16px 40px;
+    scrollbar-width: none;
+  }
+  section.day::-webkit-scrollbar { display: none; }
   .day-head { padding: 2px 4px 12px; }
   .day-head .top-row { display: flex; align-items: center; gap: 9px; }
   .day-head .n {
@@ -274,7 +284,9 @@
   }
   .btn-inline-add:hover { filter: brightness(1.1); }
 
-  footer.note { padding: 28px 24px 4px; text-align: center; font-size: 12px; color: var(--text-faint); line-height: 1.6; }
+  /* The hint lives at the bottom of each day column now that the page itself
+     doesn't scroll vertically. */
+  .day-hint { margin: 18px 4px 0; text-align: center; font-size: 11.5px; color: var(--text-faint); line-height: 1.6; }
 
   .overlay-backdrop { position: fixed; inset: 0; background: rgba(15, 25, 45, 0.45); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 24px; }
   .overlay-card { background: var(--surface); border-radius: 20px; padding: 22px 20px; max-width: 300px; width: 100%; box-shadow: var(--shadow); }
@@ -314,12 +326,11 @@
       </div>
       <p class="dates">2026.07.29 (수) — 08.01 (토) · 3박 4일</p>
     </div>
+    <nav class="daynav" id="daynav"></nav>
   </header>
   <div id="headerSpacer" aria-hidden="true"></div>
 
-  <nav class="daynav" id="daynav"></nav>
   <main id="days"></main>
-  <footer class="note">초록 아이콘을 누르면 네이버지도로 연결돼요. 연필 아이콘으로 수정, 카드를 길게 누르면 삭제할 수 있어요. 모든 변경 사항은 이 링크를 연 모두에게 실시간으로 공유돼요.</footer>
   <div id="overlayRoot"></div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
