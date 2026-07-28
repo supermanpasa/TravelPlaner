@@ -125,6 +125,17 @@ const TRIP_START = "2026-07-29";
   // day column and it looks cut off with no way to scroll up to it.
   if (window.ResizeObserver) new ResizeObserver(sizeHeaderSpacer).observe(headerEl);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeHeaderSpacer);
+
+  // Shrink the header once the visible day is scrolled. Each section.day
+  // scrolls independently (the page itself doesn't), and section.day elements
+  // are replaced on every render(), so this listens in the capture phase on a
+  // stable ancestor instead of re-binding per section — scroll doesn't bubble,
+  // but it is still observable while capturing down to its target.
+  function syncHeaderCompact(e) {
+    if (!e.target.classList || !e.target.classList.contains("day")) return;
+    headerEl.classList.toggle("compact", e.target.scrollTop > 16);
+  }
+  daysEl.addEventListener("scroll", syncHeaderCompact, { passive: true, capture: true });
   // Only re-measure when the width actually changes: iOS fires resize as its
   // address bar collapses, and re-measuring on every one of those is what made
   // the layout jump.
